@@ -98,7 +98,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         self.vf_coef = vf_coef
         self.max_grad_norm = max_grad_norm
         self.rollout_buffer = None
-
+        self.iterations = 0 
         if _init_setup_model:
             self._setup_model()
 
@@ -255,17 +255,19 @@ class OnPolicyAlgorithm(BaseAlgorithm):
             if continue_training is False:
                 break
 
+            
             iteration += 1
+            self.iterations = iteration
             if self.verbose > 1:
                 print('\nPolicy Update at Iteration {},  Time step {}'.format(iteration, self.num_timesteps))
             self._update_current_progress_remaining(self.num_timesteps, total_timesteps)
 
+            callback._on_log_step() # ok to not eval iteration 0 -> 1000 episode len and all 0 rewards
+
             # Display training infos
             if log_interval is not None and iteration % log_interval == 0:
-                if self.verbose > 1:
-                    print('\nDoing logger.record for time/* and rollout/*, running eval logger')
-                
-                callback._on_log_step()
+                # if self.verbose > 1:
+                #     print('\nDoing logger.record for time/* and rollout/*, running eval logger') 
                 
                 fps = int((self.num_timesteps - self._num_timesteps_at_start) / (time.time() - self.start_time))
                 self.logger.record("time/iterations", iteration, exclude="tensorboard")
