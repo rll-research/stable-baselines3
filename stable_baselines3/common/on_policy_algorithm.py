@@ -117,6 +117,8 @@ class OnPolicyAlgorithm(BaseAlgorithm):
             gae_lambda=self.gae_lambda,
             n_envs=self.n_envs,
         )
+        if self.verbose > 1:
+            print('On policy algo creating self.policy:', self.policy_class)
         self.policy = self.policy_class(  # pytype:disable=not-instantiable
             self.observation_space,
             self.action_space,
@@ -242,21 +244,29 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         total_timesteps, callback = self._setup_learn(
             total_timesteps, eval_env, callback, eval_freq, n_eval_episodes, eval_log_path, reset_num_timesteps, tb_log_name
         )
-
+         
         callback.on_training_start(locals(), globals())
 
         while self.num_timesteps < total_timesteps:
-
+            if self.verbose > 1:
+                print('\nCollecting rollout for Iteration {}'.format(iteration))
             continue_training = self.collect_rollouts(self.env, callback, self.rollout_buffer, n_rollout_steps=self.n_steps)
 
             if continue_training is False:
                 break
 
             iteration += 1
+            if self.verbose > 1:
+                print('\nPolicy Update at Iteration {},  Time step {}'.format(iteration, self.num_timesteps))
             self._update_current_progress_remaining(self.num_timesteps, total_timesteps)
 
             # Display training infos
             if log_interval is not None and iteration % log_interval == 0:
+                if self.verbose > 1:
+                    print('\nDoing logger.record for time/* and rollout/*, running eval logger')
+                
+                callback._on_log_step()
+                
                 fps = int((self.num_timesteps - self._num_timesteps_at_start) / (time.time() - self.start_time))
                 self.logger.record("time/iterations", iteration, exclude="tensorboard")
                 if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:

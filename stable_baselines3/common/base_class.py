@@ -213,7 +213,7 @@ class BaseAlgorithm(ABC):
             for space in env.observation_space.spaces.values():
                 if isinstance(space, gym.spaces.Dict):
                     raise ValueError("Nested observation spaces are not supported (Dict spaces inside Dict space).")
-
+ 
         if not is_vecenv_wrapped(env, VecTransposeImage):
             wrap_with_vectranspose = False
             if isinstance(env.observation_space, gym.spaces.Dict):
@@ -271,7 +271,7 @@ class BaseAlgorithm(ABC):
 
         if eval_env is not None:
             eval_env = self._wrap_env(eval_env, self.verbose)
-            assert eval_env.num_envs == 1
+            # assert eval_env.num_envs == 1
         return eval_env
 
     def _setup_lr_schedule(self) -> None:
@@ -359,8 +359,13 @@ class BaseAlgorithm(ABC):
         :param log_path: Path to a folder where the evaluations will be saved
         :return: A hybrid callback calling `callback` and performing evaluation.
         """
+        no_custom_eval_callback = True 
+
         # Convert a list of callbacks into a callback
         if isinstance(callback, list):
+            for c in callback:
+                if isinstance(c, EvalCallback):
+                    no_custom_eval_callback = False 
             callback = CallbackList(callback)
 
         # Convert functional callback to object
@@ -368,7 +373,7 @@ class BaseAlgorithm(ABC):
             callback = ConvertCallback(callback)
 
         # Create eval callback in charge of the evaluation
-        if eval_env is not None:
+        if eval_env is not None and no_custom_eval_callback:
             eval_callback = EvalCallback(
                 eval_env,
                 best_model_save_path=log_path,

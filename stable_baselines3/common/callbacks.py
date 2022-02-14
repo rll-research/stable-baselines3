@@ -192,6 +192,13 @@ class CallbackList(BaseCallback):
             continue_training = callback.on_step() and continue_training
         return continue_training
 
+    def _on_log_step(self) -> bool:
+        continue_training = True
+        for callback in self.callbacks:
+            if isinstance(callback, EvalCallback):
+                continue_training = callback._on_log_step() and continue_training
+        return continue_training
+
     def _on_rollout_end(self) -> None:
         for callback in self.callbacks:
             callback.on_rollout_end()
@@ -326,10 +333,12 @@ class EvalCallback(EventCallback):
         self.log_path = log_path
         self.evaluations_results = []
         self.evaluations_timesteps = []
+        self.evaluations_trainsteps = [] 
         self.evaluations_length = []
         # For computing success rate
         self._is_success_buffer = []
         self.evaluations_successes = []
+        self.num_update_steps = 0 
 
     def _init_callback(self) -> None:
         # Does not work in some corner cases, where the wrapper is not the same
@@ -438,6 +447,12 @@ class EvalCallback(EventCallback):
 
         return True
 
+    def _on_log_step(self) -> bool:
+        """ Run Eval of model after fixed update steps, customized in custom.callbacks.py """
+        print('Calling wrong log step')
+        raise ValueError
+        return True 
+                
     def update_child_locals(self, locals_: Dict[str, Any]) -> None:
         """
         Update the references to the local variables.

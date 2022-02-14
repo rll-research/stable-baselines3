@@ -272,7 +272,7 @@ class VecEnvWrapper(VecEnv):
         pass
 
     def seed(self, seed: Optional[int] = None) -> List[Union[None, int]]:
-        return self.venv.seed(seed)
+        return 0 #self.venv.seed(seed)
 
     def close(self) -> None:
         return self.venv.close()

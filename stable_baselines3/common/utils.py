@@ -74,7 +74,7 @@ def update_learning_rate(optimizer: th.optim.Optimizer, learning_rate: float) ->
         param_group["lr"] = learning_rate
 
 
-def get_schedule_fn(value_schedule: Union[Schedule, float, int]) -> Schedule:
+def get_schedule_fn(value_schedule: Union[Schedule, float, int, str]) -> Schedule:
     """
     Transform (if needed) learning rate and clip range (for PPO)
     to callable.
@@ -87,6 +87,16 @@ def get_schedule_fn(value_schedule: Union[Schedule, float, int]) -> Schedule:
     if isinstance(value_schedule, (float, int)):
         # Cast to float to avoid errors
         value_schedule = constant_fn(float(value_schedule))
+    elif isinstance(value_schedule, str):
+        assert '_' in value_schedule, f"The passed string {value_schedule} should have format '(schedule type)_(initial value)'"
+        schedule, initial_value = value_schedule.split("_")
+        if 'linear' in schedule:
+            initial_value = float(initial_value)
+            return get_linear_fn(start=initial_value, end=0.0, end_fraction=1.0)
+        if 'constant' in schedule:
+            initial_value = float(initial_value)
+            return constant_fn(initial_value)
+        return NotImplementedError
     else:
         assert callable(value_schedule)
     return value_schedule

@@ -11,6 +11,7 @@ import numpy as np
 import pandas
 import torch as th
 from matplotlib import pyplot as plt
+import wandb 
 
 try:
     from torch.utils.tensorboard import SummaryWriter
@@ -392,6 +393,55 @@ class TensorBoardOutputFormat(KVWriter):
             self.writer = None
 
 
+class WandbOutputFormat(KVWriter):
+    def __init__(self):
+        """
+        Dumps key/value pairs into TensorBoard's numeric format.
+
+        :param folder: the folder to write the log to
+        """
+        self.step = 0
+        
+
+    def write(self, key_values: Dict[str, Any], key_excluded: Dict[str, Union[str, Tuple[str, ...]]], step: int = 0) -> None:
+        tolog = {'Log Step': step}
+        for (key, value), (_, excluded) in zip(sorted(key_values.items()), sorted(key_excluded.items())):
+
+            if excluded is not None and "wandb" in excluded:
+                continue
+
+            if isinstance(value, np.ScalarType):
+                if not isinstance(value, str): 
+                    # str is considered a np.ScalarType, doesn't log str for now
+                    tolog[key] = value 
+
+            if isinstance(value, th.Tensor):
+                continue 
+                # self.writer.add_histogram(key, value, step)
+
+            if isinstance(value, Video):
+                # self.writer.add_video(key, value.frames, step, value.fps)
+                v = (value.frames if value.frames.ndim == 5 else
+                             np.array([value.frames])) 
+                tolog.update( {key: wandb.Video(v, fps=value.fps)} )
+
+            if isinstance(value, Figure):
+                tolog.update( {key: wandb.Image(value.figure)} )
+
+            if isinstance(value, Image):
+                 tolog.update( {key: wandb.Image(value.image)} )
+
+        # Flush the output to the file
+        wandb.log(tolog)
+        self.step = step 
+
+    def close(self) -> None:
+        """
+        closes the file
+        """
+        return 
+
+
 def make_output_format(_format: str, log_dir: str, log_suffix: str = "") -> KVWriter:
     """
     return a logger for the requested format
@@ -412,6 +462,8 @@ def make_output_format(_format: str, log_dir: str, log_suffix: str = "") -> KVWr
         return CSVOutputFormat(os.path.join(log_dir, f"progress{log_suffix}.csv"))
     elif _format == "tensorboard":
         return TensorBoardOutputFormat(log_dir)
+    elif _format == "wandb":
+        return WandbOutputFormat()
     else:
         raise ValueError(f"Unknown format specified: {_format}")
 

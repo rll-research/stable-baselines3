@@ -128,6 +128,8 @@ class PPO(OnPolicyAlgorithm):
             # Check that `n_steps * n_envs > 1` to avoid NaN
             # when doing advantage normalization
             buffer_size = self.env.num_envs * self.n_steps
+            if self.verbose > 0:
+                print(f"Env wrapper has {self.env.num_envs} envs and {self.n_steps} steps, making buffer size: {buffer_size}")
             assert (
                 buffer_size > 1
             ), f"`n_steps * n_envs` must be greater than 1. Currently n_steps={self.n_steps} and n_envs={self.env.num_envs}"
@@ -295,7 +297,7 @@ class PPO(OnPolicyAlgorithm):
         eval_log_path: Optional[str] = None,
         reset_num_timesteps: bool = True,
     ) -> "PPO":
-
+    
         return super(PPO, self).learn(
             total_timesteps=total_timesteps,
             callback=callback,

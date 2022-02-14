@@ -1,0 +1,68 @@
+run_name: burn
+log_path: ??? 
+
+env:
+  name:         'coinrun'
+  train:
+    env_name:   ${env.name}
+    num_envs:   256 
+    num_levels: 100
+    start_level: 0
+    distribution_mode: 'hard'
+    restrict_themes: False
+  eval:
+    env_name:    ${env.name}
+    num_envs:    64
+    num_levels:  0 # test on full distribution, following prior work 
+    start_level: 0 # set to ${env.train.num_levels}  to make it strictly disjoint
+    distribution_mode: ${env.train.distribution_mode}
+    restrict_themes: ${env.train.restrict_themes}
+  
+vb: 0 
+log_wb: True 
+
+learn:
+  total_timesteps: 100_000_000 # openai used 200M for hard and 25M for easy
+  # callback:        None 
+  log_interval:    10
+  eval_freq:       1000
+  n_eval_episodes: 100
+  tb_log_name:     "PPO"
+  eval_log_path:   ???
+  reset_num_timesteps: True 
+
+ppo:
+  policy:        MultiInputPolicy
+  learning_rate: 5e-4
+  n_steps:      256
+  batch_size:   2048
+  n_epochs:     3
+  gamma:        0.99
+  gae_lambda:   0.95
+  clip_range:      constant_0.2
+  clip_range_vf:   linear_30.0
+  ent_coef:        0.01
+  vf_coef:         0.5
+  max_grad_norm:   0.5
+  use_sde:         False
+  sde_sample_freq: -1
+  target_kl:       0.01
+  # tensorboard_log: None
+  create_eval_env: True 
+  policy_kwargs:   
+    features_extractor_kwargs:  
+      cnn_arch: ImpalaCNN
+  verbose:         ${vb}
+  seed:            123
+  device:          "cuda"
+  _init_setup_model: True 
+
+wandb:
+  project:   'ProcGen'
+  entity:    mannndi
+  job_type: 'train'
+  group:    'MT-PPO'
+
+hydra:
+  run:
+    dir: '/home/mandi/stable-baselines3/meta-rl/'

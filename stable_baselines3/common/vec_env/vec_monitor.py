@@ -7,7 +7,7 @@ import numpy as np
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn, VecEnvWrapper
 
 
-class VecMonitor(VecEnvWrapper):
+class VecMonitor(VecEnvWrapper): 
     """
     A vectorized monitor wrapper for *vectorized* Gym environments,
     it is used to record the episode reward, length, time and other data.

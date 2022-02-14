@@ -28,6 +28,7 @@ from stable_baselines3.common.torch_layers import (
     FlattenExtractor,
     MlpExtractor,
     NatureCNN,
+    ImpalaCNN,
     create_mlp,
 )
 from stable_baselines3.common.type_aliases import Schedule
@@ -424,7 +425,7 @@ class ActorCriticPolicy(BasePolicy):
         sde_net_arch: Optional[List[int]] = None,
         use_expln: bool = False,
         squash_output: bool = False,
-        features_extractor_class: Type[BaseFeaturesExtractor] = FlattenExtractor,
+        features_extractor_class: Union[str, Type[BaseFeaturesExtractor]] = FlattenExtractor,
         features_extractor_kwargs: Optional[Dict[str, Any]] = None,
         normalize_images: bool = True,
         optimizer_class: Type[th.optim.Optimizer] = th.optim.Adam,
@@ -448,8 +449,15 @@ class ActorCriticPolicy(BasePolicy):
         )
 
         # Default network architecture, from stable-baselines
-        if net_arch is None:
-            if features_extractor_class == NatureCNN:
+        if isinstance(features_extractor_class, str):
+            if 'Nature' in features_extractor_class:
+                features_extractor_class = NatureCNN
+            elif 'Impala' in features_extractor_class:
+                features_extractor_class = ImpalaCNN
+
+        if net_arch is None: 
+            if features_extractor_class == NatureCNN or features_extractor_class == ImpalaCNN:
+                # Note(Mandi): not used!! CoinRun uses CombinedFeatureExtractor
                 net_arch = []
             else:
                 net_arch = [dict(pi=[64, 64], vf=[64, 64])]
@@ -718,7 +726,7 @@ class ActorCriticCnnPolicy(ActorCriticPolicy):
         sde_net_arch: Optional[List[int]] = None,
         use_expln: bool = False,
         squash_output: bool = False,
-        features_extractor_class: Type[BaseFeaturesExtractor] = NatureCNN,
+        features_extractor_class: Union[Type[BaseFeaturesExtractor], str] = NatureCNN,
         features_extractor_kwargs: Optional[Dict[str, Any]] = None,
         normalize_images: bool = True,
         optimizer_class: Type[th.optim.Optimizer] = th.optim.Adam,
@@ -793,7 +801,7 @@ class MultiInputActorCriticPolicy(ActorCriticPolicy):
         sde_net_arch: Optional[List[int]] = None,
         use_expln: bool = False,
         squash_output: bool = False,
-        features_extractor_class: Type[BaseFeaturesExtractor] = CombinedExtractor,
+        features_extractor_class: Union[Type[BaseFeaturesExtractor], str] = CombinedExtractor,
         features_extractor_kwargs: Optional[Dict[str, Any]] = None,
         normalize_images: bool = True,
         optimizer_class: Type[th.optim.Optimizer] = th.optim.Adam,

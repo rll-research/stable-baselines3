@@ -1,3 +1,10 @@
+meta-rl/.hydra
+meta-rl/log/*
+meta-rl/outputs
+meta-rl/wandb
+
+*.log
+
 *.swp
 *.pyc
 *.pkl
