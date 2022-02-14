@@ -1,5 +1,4 @@
 import os
-import gym
 import logging
 from os.path import join
 from stable_baselines3 import PPO

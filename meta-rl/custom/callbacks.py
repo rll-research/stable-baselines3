@@ -77,15 +77,22 @@ class LogEvalCallback(EvalCallback):
 
     def _on_step(self) -> bool:
         # skip this function 
+        self.num_timesteps = self.model.num_timesteps
         return True 
+
+    def on_training_end(self):
+        if self.model_save_path is not None:
+            self.model.save(os.path.join(self.model_save_path, f"{int(self.model._n_updates)}"))
 
     def _on_log_step(self) -> bool:
         """ Run Eval of model after fixed update steps """
+        update_count = int(self.model.iterations) # NOTE(Mandi): for PPO this ignores n_epochs 
+        self.num_timesteps = self.model.num_timesteps
         if self.verbose > 2:
-            print('Evaluating after trained steps:', self.model._n_updates)
-        if self.eval_freq > 0 and self.model._n_updates % self.eval_freq == 0: 
+            print('Evaluating after trained steps:', self.model._n_updates, update_count)
+        if self.eval_freq > 0 and update_count % self.eval_freq == 0: 
             if self.verbose > 1:
-                print(f'Evaluating after {self.model._n_updates} model update steps')
+                print(f'Evaluating after {update_count} model update steps')
             if self.model.get_vec_normalize_env() is not None:
                 try:
                     sync_envs_normalization(self.training_env, self.eval_env)
@@ -111,7 +118,7 @@ class LogEvalCallback(EvalCallback):
 
             if self.log_path is not None:
                 self.evaluations_timesteps.append(self.num_timesteps)
-                self.evaluations_trainsteps.append(self.model._n_updates)
+                self.evaluations_trainsteps.append(update_count)
                 self.evaluations_results.append(episode_rewards)
                 self.evaluations_length.append(episode_lengths)
 
@@ -133,7 +140,7 @@ class LogEvalCallback(EvalCallback):
             self.last_mean_reward = mean_reward
 
             if self.verbose > 0:
-                print(f"Eval trained steps={self.model._n_updates}, " f"episode_reward={mean_reward:.2f} +/- {std_reward:.2f}")
+                print(f"Eval trained iterations ={update_count}, " f"episode_reward={mean_reward:.2f} +/- {std_reward:.2f}")
                 print(f"Episode length: {mean_ep_length:.2f} +/- {std_ep_length:.2f}")
             # Add to current Logger
             self.logger.record("eval/mean_reward", float(mean_reward))
@@ -146,9 +153,9 @@ class LogEvalCallback(EvalCallback):
                 self.logger.record("eval/success_rate", success_rate)
 
             # Dump log so the evaluation results are printed with the correct timestep
-            self.logger.record("time/total_timesteps", self.num_timesteps, exclude="tensorboard")
-            self.logger.record("train/total_updates", self.model._n_updates, exclude="tensorboard")
-            self.logger.dump(self.model._n_updates)
+            self.logger.record("eval/after_timesteps", self.num_timesteps, exclude="tensorboard")
+            self.logger.record("eval/after_iterations", update_count, exclude="tensorboard")
+            self.logger.dump(self.num_timesteps)
 
             if mean_reward > self.best_mean_reward:
                 if self.verbose > 0:
@@ -158,10 +165,10 @@ class LogEvalCallback(EvalCallback):
                 if self.callback is not None:
                     return self._on_event()
             if self.model_save_path is not None:
-                self.model.save(os.path.join(self.model_save_path, f"{int(self.model._n_updates)}"))
+                self.model.save(os.path.join(self.model_save_path, f"{update_count}"))
                 if self.verbose > 1:
-                    print('LogEvalCallback saving model to: ', os.path.join(self.model_save_path, f"{int(self.model._n_updates)}"))
-
+                    print(
+                        'LogEvalCallback saving model to: ',
+                        os.path.join(self.model_save_path, f"{update_count}")
+                    )
         return True
-                
- 
