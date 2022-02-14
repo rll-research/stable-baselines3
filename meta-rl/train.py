@@ -52,8 +52,13 @@ def main(cfg: DictConfig) -> None:
 
 
     model = PPO(env=env, **cfg.ppo)
-    # model.load(path='/home/mandi/stable-baselines3/log/log/burn/seed6/eval/best_model.zip')
-    # print('loaded model')
+    if cfg.load_run != '':
+        toload = join('/home/mandi/stable-baselines3/meta-rl/log', cfg.load_run)
+        toload = join(toload, f'eval/models/{cfg.load_step}')
+
+        model.load(path=toload) #'/home/mandi/stable-baselines3/log/log/burn/seed6/eval/best_model.zip')
+        print('loaded model:', toload)
+
     # create logger object
     strings = ['stdout']
     if cfg.log_wb:

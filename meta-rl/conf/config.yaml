@@ -20,6 +20,8 @@ env:
   
 vb: 0 
 log_wb: True 
+load_run: ''
+load_step: -1
 
 learn:
   total_timesteps: 100_000_000 # openai used 200M for hard and 25M for easy
