@@ -25,11 +25,11 @@ def main(cfg: DictConfig) -> None:
 
     # set up log path
     log_path = join(os.getcwd(), 'log', cfg.run_name)
-    os.makedirs(log_path, exist_ok=('burn' in cfg.run_name))
+    os.makedirs(log_path, exist_ok=True)
     seed = len(list(filter(lambda x: 'seed' in x, os.listdir(log_path)))) + 1 # next_seed
     
     log_path = join(log_path, 'seed%d' % seed)
-    os.makedirs(log_path, exist_ok=False) 
+    os.makedirs(log_path, exist_ok=True) 
     os.makedirs(join(log_path, 'eval'), exist_ok=True) 
     cfg.log_path = log_path 
     cfg.learn.eval_log_path = join(log_path, 'eval')

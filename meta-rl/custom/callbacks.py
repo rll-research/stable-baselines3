@@ -12,6 +12,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, sync_envs_norm
 
 from stable_baselines3.common.callbacks import * 
 from os.path import join
+import time 
 
 class LogEvalCallback(EvalCallback):
     """
@@ -104,7 +105,7 @@ class LogEvalCallback(EvalCallback):
                     )
             # Reset success rate buffer
             self._is_success_buffer = []
-
+            start_eval_time = time.time()
             episode_rewards, episode_lengths = evaluate_policy(
                 self.model,
                 self.eval_env,
@@ -155,6 +156,7 @@ class LogEvalCallback(EvalCallback):
             # Dump log so the evaluation results are printed with the correct timestep
             self.logger.record("eval/after_timesteps", self.num_timesteps, exclude="tensorboard")
             self.logger.record("eval/after_iterations", update_count, exclude="tensorboard")
+            self.logger.record("eval/time_elapsed_per_eval", int(time.time() - start_eval_time), exclude="tensorboard")
             self.logger.dump(self.num_timesteps)
 
             if mean_reward > self.best_mean_reward:
