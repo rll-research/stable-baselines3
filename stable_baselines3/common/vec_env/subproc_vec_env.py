@@ -211,6 +211,7 @@ def _flatten_obs(obs: Union[List[VecEnvObs], Tuple[VecEnvObs]], space: gym.space
     if isinstance(space, gym.spaces.Dict):
         assert isinstance(space.spaces, OrderedDict), "Dict space must have ordered subspaces"
         assert isinstance(obs[0], dict), "non-dict observation for environment with Dict observation space"
+
         return OrderedDict([(k, np.stack([o[k] for o in obs])) for k in space.spaces.keys()])
     elif isinstance(space, gym.spaces.Tuple):
         assert isinstance(obs[0], tuple), "non-tuple observation for environment with Tuple observation space"

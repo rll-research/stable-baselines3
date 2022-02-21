@@ -6,18 +6,39 @@ env:
   train:
     env_name:   ${env.name}
     num_envs:   256 
-    num_levels: 100
+    num_levels: 10000
     start_level: 0
     distribution_mode: 'hard'
     restrict_themes: False
   eval:
     env_name:    ${env.name}
     num_envs:    64
-    num_levels:  0 # test on full distribution, following prior work 
+    num_levels:  10000 # test on full distribution, following prior work 
     start_level: 0 # set to ${env.train.num_levels}  to make it strictly disjoint
     distribution_mode: ${env.train.distribution_mode}
     restrict_themes: ${env.train.restrict_themes}
   
+custom_env:
+  name:         'coinrun'
+  num_train_env:   256 
+  num_eval_env: 64
+  train:
+    env_name:   ${custom_env.name} 
+    max_trials: 2
+    num_levels: 100
+    start_level: 0
+    distribution_mode: 'hard'
+    restrict_themes: False
+    is_train: True
+  eval:
+    env_name:    ${custom_env.name}
+    max_trials:  ${custom_env.train.max_trials}
+    num_levels:  100 # test on full distribution, following prior work 
+    start_level: 0 # set to ${env.train.num_levels}  to make it strictly disjoint
+    distribution_mode: ${custom_env.train.distribution_mode}
+    restrict_themes: ${custom_env.train.restrict_themes}
+    is_train: False 
+
 vb: 0 
 log_wb: True 
 load_run: ''
@@ -32,7 +53,7 @@ learn:
   tb_log_name:     "PPO"
   eval_log_path:   ???
   reset_num_timesteps: True 
-
+cnn: NatureCNN
 ppo:
   policy:        MultiInputPolicy
   learning_rate: 5e-4
@@ -53,7 +74,7 @@ ppo:
   create_eval_env: True 
   policy_kwargs:   
     features_extractor_kwargs:  
-      cnn_arch:   NatureCNN # ImpalaCNN
+      cnn_arch:   ${cnn} # ImpalaCNN
   verbose:         ${vb}
   seed:            123
   device:          "cuda"
