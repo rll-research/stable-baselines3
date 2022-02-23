@@ -6,7 +6,7 @@ env:
   train:
     env_name:   ${env.name}
     num_envs:   256 
-    num_levels: 10000
+    num_levels: 100
     start_level: 0
     distribution_mode: 'hard'
     restrict_themes: False
@@ -14,7 +14,7 @@ env:
     env_name:    ${env.name}
     num_envs:    64
     num_levels:  10000 # test on full distribution, following prior work 
-    start_level: 0 # set to ${env.train.num_levels}  to make it strictly disjoint
+    start_level: ${env.train.num_levels}  # to make it strictly disjoint
     distribution_mode: ${env.train.distribution_mode}
     restrict_themes: ${env.train.restrict_themes}
   
@@ -78,7 +78,41 @@ ppo:
   verbose:         ${vb}
   seed:            123
   device:          "cuda"
+  _init_setup_model: True  
+  recurrent: False 
+
+recurrent: False
+ppo_lstm:
+  policy: RecurrentMultiInputActorCriticPolicy 
+  learning_rate: 5e-4
+  n_steps:      256
+  batch_size:   2048
+  n_epochs:     3
+  gamma:        0.99
+  gae_lambda:   0.95
+  clip_range:      constant_0.2
+  clip_range_vf:   linear_30.0
+  ent_coef:        0.01
+  vf_coef:         0.5
+  max_grad_norm:   0.5
+  use_sde:         False
+  sde_sample_freq: -1
+  target_kl:       0.01
+  # tensorboard_log: None
+  create_eval_env: True 
+  policy_kwargs:   
+    features_extractor_kwargs:  
+      cnn_arch:   ${cnn} # ImpalaCNN
+  verbose:         ${vb}
+  seed:            123
+  device:          "cuda"
   _init_setup_model: True 
+  shared_lstm:     True 
+  enable_critic_lstm: False
+  n_lstm_layers:    2
+  lstm_hidden_size: 256
+  recurrent: True 
+
 
 wandb:
   project:   'ProcGen'
