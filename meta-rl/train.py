@@ -15,9 +15,11 @@ from stable_baselines3.common.vec_env import (
     is_vecenv_wrapped,
     VecMonitor
 )
+from stable_baselines3.common.vec_env.subproc_vec_env import SubprocVecEnv
 from stable_baselines3.common.logger import configure as configure_logger
 import wandb 
 from custom.callbacks import LogEvalCallback
+from custom.custom_procgen_env import MultiProcGenEnv, make_custom_env
 
 @hydra.main(config_name='config', config_path='conf')
 def main(cfg: DictConfig) -> None:
@@ -37,12 +39,17 @@ def main(cfg: DictConfig) -> None:
  
 
     # set up env
-    env = ProcgenEnv(**(cfg.env.train))
+    # env = ProcgenEnv(**(cfg.env.train))
+    # env = VecMonitor(env)
+
+    # eval_env = ProcgenEnv(**(cfg.env.eval))
+    # eval_env = VecMonitor(eval_env)
+    env = SubprocVecEnv([
+        lambda : make_custom_env(cfg.custom_env.train) for i in range(cfg.custom_env.num_train_env)])
     env = VecMonitor(env)
-
-    eval_env = ProcgenEnv(**(cfg.env.eval))
+    eval_env =  SubprocVecEnv([
+        lambda : make_custom_env(cfg.custom_env.eval) for i in range(cfg.custom_env.num_eval_env)])
     eval_env = VecMonitor(eval_env)
-
 
     logging.info(
         f"Using Env: {cfg.env.name}, " + \
@@ -55,11 +62,13 @@ def main(cfg: DictConfig) -> None:
     if cfg.load_run != '':
         toload = join('/home/mandi/stable-baselines3/meta-rl/log', cfg.load_run)
         toload = join(toload, f'eval/models/{cfg.load_step}')
+
         #print(model.policy.state_dict()['action_net.bias'])
         model = model.load(env=env, path=toload) #'/home/mandi/stable-baselines3/log/log/burn/seed6/eval/best_model.zip')
         print('loaded model:', toload)
         #print(model.policy.state_dict()['action_net.bias'])
         #raise ValueError 
+
 
     # create logger object
     strings = ['stdout']

@@ -1,3 +1,5 @@
+""" NOTE(Mandi): already added to the stable_baselines3.common.torch_layers.py file """
+
 from itertools import zip_longest
 from typing import Dict, List, Tuple, Type, Union
 
@@ -10,8 +12,6 @@ from stable_baselines3.common.type_aliases import TensorDict
 from stable_baselines3.common.utils import get_device
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 
-
-""" extending from stable_baselines3.common.torch_layers.py """
 
 class ImpalaBlock(nn.Module):
     def __init__(self, in_channels, out_channels):
