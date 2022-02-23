@@ -39,17 +39,17 @@ def main(cfg: DictConfig) -> None:
  
 
     # set up env
-    # env = ProcgenEnv(**(cfg.env.train))
-    # env = VecMonitor(env)
-
-    # eval_env = ProcgenEnv(**(cfg.env.eval))
-    # eval_env = VecMonitor(eval_env)
-    env = SubprocVecEnv([
-        lambda : make_custom_env(cfg.custom_env.train) for i in range(cfg.custom_env.num_train_env)])
+    env = ProcgenEnv(**(cfg.env.train))
     env = VecMonitor(env)
-    eval_env =  SubprocVecEnv([
-        lambda : make_custom_env(cfg.custom_env.eval) for i in range(cfg.custom_env.num_eval_env)])
+
+    eval_env = ProcgenEnv(**(cfg.env.eval))
     eval_env = VecMonitor(eval_env)
+    # env = SubprocVecEnv([
+    #     lambda : make_custom_env(cfg.custom_env.train) for i in range(cfg.custom_env.num_train_env)])
+    # env = VecMonitor(env)
+    # eval_env =  SubprocVecEnv([
+    #     lambda : make_custom_env(cfg.custom_env.eval) for i in range(cfg.custom_env.num_eval_env)])
+    # eval_env = VecMonitor(eval_env)
 
     logging.info(
         f"Using Env: {cfg.env.name}, " + \
@@ -57,8 +57,10 @@ def main(cfg: DictConfig) -> None:
         f"Eval on levels {cfg.env.eval.start_level} - {cfg.env.eval.start_level + cfg.env.eval.num_levels}"
         )
 
-
-    model = PPO(env=env, **cfg.ppo)
+    if cfg.recurrent:
+        model = PPO(env=env, **cfg.ppo_lstm)
+    else:
+        model = PPO(env=env, **cfg.ppo)
     if cfg.load_run != '':
         toload = join('/home/mandi/stable-baselines3/meta-rl/log', cfg.load_run)
         toload = join(toload, f'eval/models/{cfg.load_step}')
