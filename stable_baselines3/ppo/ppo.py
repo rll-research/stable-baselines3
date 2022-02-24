@@ -24,7 +24,7 @@ from stable_baselines3.common.buffers_recurrent import RecurrentDictRolloutBuffe
 from stable_baselines3.common.policies_recurrent import RecurrentActorCriticPolicy
 from stable_baselines3.common.vec_env import VecEnv
 from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.utils import explained_variance, get_schedule_fn, obs_as_tensor, safe_mean
+from stable_baselines3.common.utils import explained_variance, get_schedule_fn, obs_as_tensor, safe_mea[[n
 from copy import deepcopy
 
 class PPO(OnPolicyAlgorithm):
@@ -108,6 +108,7 @@ class PPO(OnPolicyAlgorithm):
         device: Union[th.device, str] = "auto",
         _init_setup_model: bool = True,
         recurrent: bool = False,
+        buffer_sample_strategy: str = "default",
     ):
 
         super(PPO, self).__init__(
@@ -169,7 +170,7 @@ class PPO(OnPolicyAlgorithm):
         self.clip_range_vf = clip_range_vf
         self.target_kl = target_kl
         self.recurrent = recurrent
-        self.sampling_strategy = "default"
+        self.sampling_strategy = buffer_sample_strategy
 
         if _init_setup_model:
             self._setup_model()

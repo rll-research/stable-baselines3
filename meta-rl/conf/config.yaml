@@ -107,6 +107,7 @@ ppo_lstm:
     n_lstm_layers:    2
     shared_lstm:     True 
     enable_critic_lstm: False
+    buffer_sample_strategy: "per_env"
   verbose:         ${vb}
   seed:            123
   device:          "cuda"
