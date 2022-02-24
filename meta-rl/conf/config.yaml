@@ -83,7 +83,7 @@ ppo:
 
 recurrent: False
 ppo_lstm:
-  policy: RecurrentMultiInputActorCriticPolicy 
+  policy: RecurrentMultiInputPolicy 
   learning_rate: 5e-4
   n_steps:      256
   batch_size:   2048
@@ -103,14 +103,14 @@ ppo_lstm:
   policy_kwargs:   
     features_extractor_kwargs:  
       cnn_arch:   ${cnn} # ImpalaCNN
+    lstm_hidden_size: 256
+    n_lstm_layers:    2
+    shared_lstm:     True 
+    enable_critic_lstm: False
   verbose:         ${vb}
   seed:            123
   device:          "cuda"
-  _init_setup_model: True 
-  shared_lstm:     True 
-  enable_critic_lstm: False
-  n_lstm_layers:    2
-  lstm_hidden_size: 256
+  _init_setup_model: True  
   recurrent: True 
 
 
