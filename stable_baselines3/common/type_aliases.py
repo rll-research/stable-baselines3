@@ -69,3 +69,30 @@ class TrainFrequencyUnit(Enum):
 class TrainFreq(NamedTuple):
     frequency: int
     unit: TrainFrequencyUnit  # either "step" or "episode"
+
+
+class RNNStates(NamedTuple):
+    pi: Tuple[th.Tensor, ...]
+    vf: Tuple[th.Tensor, ...]
+
+
+class RecurrentRolloutBufferSamples(NamedTuple):
+    observations: th.Tensor
+    actions: th.Tensor
+    old_values: th.Tensor
+    old_log_prob: th.Tensor
+    advantages: th.Tensor
+    returns: th.Tensor
+    lstm_states: RNNStates
+    episode_starts: th.Tensor
+
+
+class RecurrentDictRolloutBufferSamples(RecurrentRolloutBufferSamples):
+    observations: TensorDict
+    actions: th.Tensor
+    old_values: th.Tensor
+    old_log_prob: th.Tensor
+    advantages: th.Tensor
+    returns: th.Tensor
+    lstm_states: RNNStates
+    episode_starts: th.Tensor
