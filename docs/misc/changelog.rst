@@ -4,18 +4,19 @@ Changelog
 ==========
 
 
-Release 1.4.1a0 (WIP)
+Release 1.4.1a3 (WIP)
 ---------------------------
 
 
 Breaking Changes:
 ^^^^^^^^^^^^^^^^^
-
+- Switched minimum Gym version to 0.21.0.
 
 New Features:
 ^^^^^^^^^^^^^
-- Makes the length of keys and values in `HumanOutputFormat` configurable,
+- Makes the length of keys and values in ``HumanOutputFormat`` configurable,
   depending on desired maximum width of output.
+- Allow PPO to turn of advantage normalization (see `PR #763 <https://github.com/DLR-RM/stable-baselines3/pull/763>`_) @vwxyzjn
 
 SB3-Contrib
 ^^^^^^^^^^^
@@ -26,20 +27,22 @@ Bug Fixes:
 - Fixed a bug in ``HumanOutputFormat``. Distinct keys truncated to the same prefix would overwrite each others value,
   resulting in only one being output. This now raises an error (this should only affect a small fraction of use cases
   with very long keys.)
-- Routing all the nn.Module calls through implicit rather than explict forward as per pytorch guidelines (@manuel-delverme)
+- Routing all the ``nn.Module`` calls through implicit rather than explict forward as per pytorch guidelines (@manuel-delverme)
+- Fixed a bug in ``VecNormalize`` where error occurs when ``norm_obs`` is set to False for environment with dictionary observation  (@buoyancy99)
 
 Deprecations:
 ^^^^^^^^^^^^^
-- Switched minimum Gym version to 0.21.0.
 
 Others:
 ^^^^^^^
+- Fixed pytest warnings
 
 Documentation:
 ^^^^^^^^^^^^^^
 - Added doc on Hugging Face integration (@simoninithomas)
 - Added furuta pendulum project to project list (@armandpl)
 - Fix indentation 2 spaces to 4 spaces in custom env documentation example (@Gautam-J)
+- Update MlpExtractor docstring (@gianlucadecola)
 
 
 Release 1.4.0 (2022-01-18)
@@ -85,6 +88,7 @@ Bug Fixes:
 - Fixed evaluation script for recurrent policies (experimental feature in SB3 contrib)
 - Fixed a bug where the observation would be incorrectly detected as non-vectorized instead of throwing an error
 - The env checker now properly checks and warns about potential issues for continuous action spaces when the boundaries are too small or when the dtype is not float32
+- Fixed sample normalization in ``DictReplayBuffer`` (@qgallouedec)
 - Fixed a bug in ``VecFrameStack`` with channel first image envs, where the terminal observation would be wrongly created.
 
 Deprecations:
@@ -919,4 +923,4 @@ And all the contributors:
 @benblack769 @bstee615 @c-rizz @skandermoalla @MihaiAnca13 @davidblom603 @ayeright @cyprienc
 @wkirgsn @AechPro @CUN-bjy @batu @IljaAvadiev @timokau @kachayev @cleversonahum
 @eleurent @ac-93 @cove9988 @theDebugger811 @hsuehch @Demetrio92 @thomasgubler @IperGiove @ScheiklP
-@simoninithomas @armandpl @manuel-delverme @Gautam-J
+@simoninithomas @armandpl @manuel-delverme @Gautam-J @gianlucadecola @buoyancy99
