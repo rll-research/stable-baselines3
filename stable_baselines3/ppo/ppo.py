@@ -19,12 +19,12 @@ from stable_baselines3.common.type_aliases import (
     RecurrentRolloutBufferSamples,
     RNNStates,
 )
-from stable_baselines3.common.buffers import RolloutBuffer
+from stable_baselines3.common.buffers import DictRolloutBuffer, RolloutBuffer
 from stable_baselines3.common.buffers_recurrent import RecurrentDictRolloutBuffer, RecurrentRolloutBuffer
 from stable_baselines3.common.policies_recurrent import RecurrentActorCriticPolicy
 from stable_baselines3.common.vec_env import VecEnv
 from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.utils import explained_variance, get_schedule_fn, obs_as_tensor, safe_mea[[n
+from stable_baselines3.common.utils import explained_variance, get_schedule_fn, obs_as_tensor, safe_mean
 from copy import deepcopy
 
 class PPO(OnPolicyAlgorithm):
@@ -195,8 +195,7 @@ class PPO(OnPolicyAlgorithm):
 
     def _setup_recurrent_model(self) -> None:
         self._setup_lr_schedule()
-        self.set_random_seed(self.seed)
-        print(self.policy_kwargs, self.policy_class)
+        self.set_random_seed(self.seed) 
         self.policy = self.policy_class(
             self.observation_space,
             self.action_space,
@@ -226,19 +225,30 @@ class PPO(OnPolicyAlgorithm):
             ),
         )
 
-        buffer_cls = (
-            RecurrentDictRolloutBuffer if isinstance(self.observation_space, gym.spaces.Dict) else RecurrentRolloutBuffer
-        )
+        # buffer_cls = (
+        #     RecurrentDictRolloutBuffer if isinstance(self.observation_space, gym.spaces.Dict) else RecurrentRolloutBuffer
+        # )
+        # self.rollout_buffer = buffer_cls(
+        #     self.n_steps,
+        #     self.observation_space,
+        #     self.action_space,
+        #     lstm_states,
+        #     self.device,
+        #     gamma=self.gamma,
+        #     gae_lambda=self.gae_lambda,
+        #     n_envs=self.n_envs,
+        #     sampling_strategy=self.sampling_strategy,
+        # )
+        buffer_cls = DictRolloutBuffer if isinstance(self.observation_space, gym.spaces.Dict) else RolloutBuffer
+
         self.rollout_buffer = buffer_cls(
             self.n_steps,
             self.observation_space,
             self.action_space,
-            lstm_states,
-            self.device,
+            device=self.device,
             gamma=self.gamma,
             gae_lambda=self.gae_lambda,
             n_envs=self.n_envs,
-            sampling_strategy=self.sampling_strategy,
         )
  
     def train(self) -> None:
@@ -274,13 +284,23 @@ class PPO(OnPolicyAlgorithm):
                 # Re-sample the noise matrix because the log_std has changed
                 if self.use_sde:
                     self.policy.reset_noise(self.batch_size)
-
+                 
+                batch_envs = int(rollout_data.observations['rgb'].shape[0] / 256)
+                debug_lstm_states = RNNStates(
+                    (th.zeros((2, batch_envs, 128)).to(self.device),
+                    th.zeros((2, batch_envs, 128)).to(self.device)),
+                    (th.zeros((2, batch_envs, 128)).to(self.device),
+                    th.zeros((2, batch_envs, 128)).to(self.device),)
+                )
+                debug_episode_starts = th.zeros(rollout_data.observations['rgb'].shape[0]).to(self.device)
                 if self.recurrent:
                     values, log_prob, entropy = self.policy.evaluate_actions(
                         rollout_data.observations,
                         actions,
-                        rollout_data.lstm_states,
-                        rollout_data.episode_starts,
+                        debug_lstm_states,
+                        debug_episode_starts,
+                        # rollout_data.lstm_states,
+                        # rollout_data.episode_starts,
                     )
                 else:
                     values, log_prob, entropy = self.policy.evaluate_actions(rollout_data.observations, actions)
@@ -380,9 +400,9 @@ class PPO(OnPolicyAlgorithm):
     ) -> bool:
         if not self.recurrent:
             return super(PPO, self).collect_rollouts(env, callback, rollout_buffer, n_rollout_steps)
-        assert isinstance(
-            rollout_buffer, (RecurrentRolloutBuffer, RecurrentDictRolloutBuffer)
-        ), "RolloutBuffer doesn't support recurrent policy"
+        # assert isinstance(
+        #     rollout_buffer, (RecurrentRolloutBuffer, RecurrentDictRolloutBuffer)
+        # ), "RolloutBuffer doesn't support recurrent policy"
 
         assert self._last_obs is not None, "No previous observation was provided"
         # Switch to eval mode (this affects batch norm / dropout)
@@ -453,15 +473,16 @@ class PPO(OnPolicyAlgorithm):
                         terminal_value = self.policy.predict_values(terminal_obs, terminal_lstm_state, episode_starts)[0]
                     rewards[idx] += self.gamma * terminal_value
 
-            rollout_buffer.add(
-                self._last_obs,
-                actions,
-                rewards,
-                self._last_episode_starts,
-                values,
-                log_probs,
-                lstm_states=self._last_lstm_states,
-            )
+            # rollout_buffer.add(
+            #     self._last_obs,
+            #     actions,
+            #     rewards,
+            #     self._last_episode_starts,
+            #     values,
+            #     log_probs,
+            #     lstm_states=lstm_states, #self._last_lstm_states,
+            # )
+            rollout_buffer.add(self._last_obs, actions, rewards, self._last_episode_starts, values, log_probs)
 
             self._last_obs = new_obs
             self._last_episode_starts = dones
