@@ -114,12 +114,12 @@ class RecurrentRolloutBuffer(RolloutBuffer):
         # more complexity and use of padding
         if self.sampling_strategy == "default":
             # No shuffling
-            # indices = np.arange(self.buffer_size * self.n_envs)
+            indices = np.arange(self.buffer_size * self.n_envs)
             # Trick to shuffle a bit: keep the sequence order
             # but split the indices in two
-            split_index = np.random.randint(self.buffer_size * self.n_envs)
-            indices = np.arange(self.buffer_size * self.n_envs)
-            indices = np.concatenate((indices[split_index:], indices[:split_index]))
+            # split_index = np.random.randint(self.buffer_size * self.n_envs)
+            # indices = np.arange(self.buffer_size * self.n_envs)
+            # indices = np.concatenate((indices[split_index:], indices[:split_index]))
 
             env_change = np.zeros(self.buffer_size * self.n_envs).reshape(self.buffer_size, self.n_envs)
             # Flag first timestep as change of environment
@@ -185,7 +185,6 @@ class RecurrentRolloutBuffer(RolloutBuffer):
         seq_start[0] = True
         self.starts = np.where(seq_start == True)[0]  # noqa: E712
         self.ends = np.concatenate([(self.starts - 1)[1:], np.array([len(batch_inds)])])
-
         n_layers = self.hidden_states_pi.shape[1]
         n_seq = len(self.starts)
         max_length = self.pad(self.actions[batch_inds]).shape[0]
@@ -308,7 +307,7 @@ class RecurrentDictRolloutBuffer(DictRolloutBuffer):
         # Return everything, don't create minibatches
         if batch_size is None:
             batch_size = self.buffer_size * self.n_envs
-
+        # print('recurrent dict buffer get:', batch_size)
         # No shuffling:
         # indices = np.arange(self.buffer_size * self.n_envs)
         # Trick to shuffle a bit: keep the sequence order
@@ -324,7 +323,9 @@ class RecurrentDictRolloutBuffer(DictRolloutBuffer):
 
         start_idx = 0
         while start_idx < self.buffer_size * self.n_envs:
+            # print('buffer size and nenvs', self.buffer_size, self.n_envs)
             batch_inds = indices[start_idx : start_idx + batch_size]
+            # print(start_idx, batch_inds.shape)
             yield self._get_samples(batch_inds, env_change)
             start_idx += batch_size
 
@@ -344,7 +345,7 @@ class RecurrentDictRolloutBuffer(DictRolloutBuffer):
         seq_start[0] = True
         self.starts = np.where(seq_start == True)[0]  # noqa: E712
         self.ends = np.concatenate([(self.starts - 1)[1:], np.array([len(batch_inds)])])
-
+        # print('recurrent dict buffer get:', self.starts.shape, self.ends.shape)
         n_layers = self.hidden_states_pi.shape[1]
         n_seq = len(self.starts)
         max_length = self.pad(self.actions[batch_inds]).shape[0]
@@ -360,6 +361,7 @@ class RecurrentDictRolloutBuffer(DictRolloutBuffer):
             self.hidden_states_vf[batch_inds][seq_start == True].reshape(n_layers, n_seq, -1),  # noqa: E712
             self.cell_states_vf[batch_inds][seq_start == True].reshape(n_layers, n_seq, -1),  # noqa: E712
         )
+        # print('recurrent dict buffer get:', lstm_states_pi[0].shape)
         lstm_states_pi = (self.to_torch(lstm_states_pi[0]), self.to_torch(lstm_states_pi[1]))
         lstm_states_vf = (self.to_torch(lstm_states_vf[0]), self.to_torch(lstm_states_vf[1]))
 

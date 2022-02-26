@@ -609,8 +609,10 @@ class DictReplayBuffer(ReplayBuffer):
         env_indices = np.random.randint(0, high=self.n_envs, size=(len(batch_inds),))
 
         # Normalize if needed and remove extra dimension (we are using only one env for now)
-        obs_ = self._normalize_obs({key: obs[batch_inds, env_indices, :] for key, obs in self.observations.items()})
-        next_obs_ = self._normalize_obs({key: obs[batch_inds, env_indices, :] for key, obs in self.next_observations.items()})
+        obs_ = self._normalize_obs({key: obs[batch_inds, env_indices, :] for key, obs in self.observations.items()}, env)
+        next_obs_ = self._normalize_obs(
+            {key: obs[batch_inds, env_indices, :] for key, obs in self.next_observations.items()}, env
+        )
 
         # Convert to torch tensor
         observations = {key: self.to_torch(obs) for key, obs in obs_.items()}
@@ -734,6 +736,7 @@ class DictRolloutBuffer(RolloutBuffer):
     def get(self, batch_size: Optional[int] = None) -> Generator[DictRolloutBufferSamples, None, None]:
         assert self.full, ""
         indices = np.random.permutation(self.buffer_size * self.n_envs)
+        indices = np.arange(self.buffer_size * self.n_envs)
         # Prepare the data
         if not self.generator_ready:
 

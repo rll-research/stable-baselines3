@@ -19,7 +19,7 @@ from stable_baselines3.common.type_aliases import (
     RecurrentRolloutBufferSamples,
     RNNStates,
 )
-from stable_baselines3.common.buffers import RolloutBuffer
+from stable_baselines3.common.buffers import DictRolloutBuffer, RolloutBuffer
 from stable_baselines3.common.buffers_recurrent import RecurrentDictRolloutBuffer, RecurrentRolloutBuffer
 from stable_baselines3.common.policies_recurrent import RecurrentActorCriticPolicy
 from stable_baselines3.common.vec_env import VecEnv
@@ -58,6 +58,7 @@ class PPO(OnPolicyAlgorithm):
         This is a parameter specific to the OpenAI implementation. If None is passed (default),
         no clipping will be done on the value function.
         IMPORTANT: this clipping depends on the reward scaling.
+    :param normalize_advantage: Whether to normalize or not the advantage
     :param ent_coef: Entropy coefficient for the loss calculation
     :param vf_coef: Value function coefficient for the loss calculation
     :param max_grad_norm: The maximum value for the gradient clipping
@@ -94,6 +95,7 @@ class PPO(OnPolicyAlgorithm):
         gae_lambda: float = 0.95,
         clip_range: Union[float, Schedule] = 0.2,
         clip_range_vf: Union[None, float, Schedule] = None,
+        normalize_advantage: bool = True,
         ent_coef: float = 0.0,
         vf_coef: float = 0.5,
         max_grad_norm: float = 0.5,
@@ -108,6 +110,7 @@ class PPO(OnPolicyAlgorithm):
         device: Union[th.device, str] = "auto",
         _init_setup_model: bool = True,
         recurrent: bool = False,
+        buffer_sample_strategy: str = "default",
     ):
 
         super(PPO, self).__init__(
@@ -139,9 +142,10 @@ class PPO(OnPolicyAlgorithm):
 
         # Sanity check, otherwise it will lead to noisy gradient and NaN
         # because of the advantage normalization
-        assert (
-            batch_size > 1
-        ), "`batch_size` must be greater than 1. See https://github.com/DLR-RM/stable-baselines3/issues/440"
+        if normalize_advantage:
+            assert (
+                batch_size > 1
+            ), "`batch_size` must be greater than 1. See https://github.com/DLR-RM/stable-baselines3/issues/440"
 
         if self.env is not None:
             # Check that `n_steps * n_envs > 1` to avoid NaN
@@ -167,9 +171,10 @@ class PPO(OnPolicyAlgorithm):
         self.n_epochs = n_epochs
         self.clip_range = clip_range
         self.clip_range_vf = clip_range_vf
+        self.normalize_advantage = normalize_advantage
         self.target_kl = target_kl
         self.recurrent = recurrent
-        self.sampling_strategy = "default"
+        self.sampling_strategy = buffer_sample_strategy
 
         if _init_setup_model:
             self._setup_model()
@@ -190,8 +195,7 @@ class PPO(OnPolicyAlgorithm):
 
     def _setup_recurrent_model(self) -> None:
         self._setup_lr_schedule()
-        self.set_random_seed(self.seed)
-        print(self.policy_kwargs, self.policy_class)
+        self.set_random_seed(self.seed) 
         self.policy = self.policy_class(
             self.observation_space,
             self.action_space,
@@ -221,19 +225,30 @@ class PPO(OnPolicyAlgorithm):
             ),
         )
 
-        buffer_cls = (
-            RecurrentDictRolloutBuffer if isinstance(self.observation_space, gym.spaces.Dict) else RecurrentRolloutBuffer
-        )
+        # buffer_cls = (
+        #     RecurrentDictRolloutBuffer if isinstance(self.observation_space, gym.spaces.Dict) else RecurrentRolloutBuffer
+        # )
+        # self.rollout_buffer = buffer_cls(
+        #     self.n_steps,
+        #     self.observation_space,
+        #     self.action_space,
+        #     lstm_states,
+        #     self.device,
+        #     gamma=self.gamma,
+        #     gae_lambda=self.gae_lambda,
+        #     n_envs=self.n_envs,
+        #     sampling_strategy=self.sampling_strategy,
+        # )
+        buffer_cls = DictRolloutBuffer if isinstance(self.observation_space, gym.spaces.Dict) else RolloutBuffer
+
         self.rollout_buffer = buffer_cls(
             self.n_steps,
             self.observation_space,
             self.action_space,
-            lstm_states,
-            self.device,
+            device=self.device,
             gamma=self.gamma,
             gae_lambda=self.gae_lambda,
             n_envs=self.n_envs,
-            sampling_strategy=self.sampling_strategy,
         )
  
     def train(self) -> None:
@@ -269,20 +284,31 @@ class PPO(OnPolicyAlgorithm):
                 # Re-sample the noise matrix because the log_std has changed
                 if self.use_sde:
                     self.policy.reset_noise(self.batch_size)
-
+                 
+                batch_envs = int(rollout_data.observations['rgb'].shape[0] / 256)
+                debug_lstm_states = RNNStates(
+                    (th.zeros((2, batch_envs, 128)).to(self.device),
+                    th.zeros((2, batch_envs, 128)).to(self.device)),
+                    (th.zeros((2, batch_envs, 128)).to(self.device),
+                    th.zeros((2, batch_envs, 128)).to(self.device),)
+                )
+                debug_episode_starts = th.zeros(rollout_data.observations['rgb'].shape[0]).to(self.device)
                 if self.recurrent:
                     values, log_prob, entropy = self.policy.evaluate_actions(
                         rollout_data.observations,
                         actions,
-                        rollout_data.lstm_states,
-                        rollout_data.episode_starts,
+                        debug_lstm_states,
+                        debug_episode_starts,
+                        # rollout_data.lstm_states,
+                        # rollout_data.episode_starts,
                     )
                 else:
                     values, log_prob, entropy = self.policy.evaluate_actions(rollout_data.observations, actions)
                 values = values.flatten()
                 # Normalize advantage
                 advantages = rollout_data.advantages
-                advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+                if self.normalize_advantage:
+                    advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
                 # ratio between old and new policy, should be one at the first iteration
                 ratio = th.exp(log_prob - rollout_data.old_log_prob)
@@ -374,9 +400,9 @@ class PPO(OnPolicyAlgorithm):
     ) -> bool:
         if not self.recurrent:
             return super(PPO, self).collect_rollouts(env, callback, rollout_buffer, n_rollout_steps)
-        assert isinstance(
-            rollout_buffer, (RecurrentRolloutBuffer, RecurrentDictRolloutBuffer)
-        ), "RolloutBuffer doesn't support recurrent policy"
+        # assert isinstance(
+        #     rollout_buffer, (RecurrentRolloutBuffer, RecurrentDictRolloutBuffer)
+        # ), "RolloutBuffer doesn't support recurrent policy"
 
         assert self._last_obs is not None, "No previous observation was provided"
         # Switch to eval mode (this affects batch norm / dropout)
@@ -447,15 +473,16 @@ class PPO(OnPolicyAlgorithm):
                         terminal_value = self.policy.predict_values(terminal_obs, terminal_lstm_state, episode_starts)[0]
                     rewards[idx] += self.gamma * terminal_value
 
-            rollout_buffer.add(
-                self._last_obs,
-                actions,
-                rewards,
-                self._last_episode_starts,
-                values,
-                log_probs,
-                lstm_states=self._last_lstm_states,
-            )
+            # rollout_buffer.add(
+            #     self._last_obs,
+            #     actions,
+            #     rewards,
+            #     self._last_episode_starts,
+            #     values,
+            #     log_probs,
+            #     lstm_states=lstm_states, #self._last_lstm_states,
+            # )
+            rollout_buffer.add(self._last_obs, actions, rewards, self._last_episode_starts, values, log_probs)
 
             self._last_obs = new_obs
             self._last_episode_starts = dones

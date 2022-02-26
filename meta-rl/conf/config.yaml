@@ -5,7 +5,7 @@ env:
   name:         'coinrun'
   train:
     env_name:   ${env.name}
-    num_envs:   256 
+    num_envs:   256 # buffer size == num_envs * ppo.n_steps = 65536
     num_levels: 100
     start_level: 0
     distribution_mode: 'hard'
@@ -103,15 +103,17 @@ ppo_lstm:
   policy_kwargs:   
     features_extractor_kwargs:  
       cnn_arch:   ${cnn} # ImpalaCNN
-    lstm_hidden_size: 256
+    lstm_hidden_size: 128
     n_lstm_layers:    2
     shared_lstm:     True 
     enable_critic_lstm: False
+    
   verbose:         ${vb}
   seed:            123
   device:          "cuda"
   _init_setup_model: True  
   recurrent: True 
+  buffer_sample_strategy: "default" # "per_env"
 
 
 wandb:
