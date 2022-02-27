@@ -303,15 +303,16 @@ class PPO(OnPolicyAlgorithm):
                         actions,
                         debug_lstm_states,
                         debug_episode_starts,
-                        # rollout_data.lstm_states,
-                        # rollout_data.episode_starts,
+                        
                     )
-                elif self.recurrent:
+                elif self.recurrent: 
+                    # debug_lstm_states = th.zeros_like(rollout_data.lstm_states) 
+                    # debug_episode_starts = th.zeros_like(rollout_data.episode_starts)
                     values, log_prob, entropy = self.policy.evaluate_actions(
                         rollout_data.observations,
-                        actions,
-                        debug_lstm_states,
-                        debug_episode_starts,
+                        actions, 
+                        # debug_lstm_states, # tmp!
+                        # debug_episode_starts,
                         rollout_data.lstm_states,
                         rollout_data.episode_starts,
                     )
