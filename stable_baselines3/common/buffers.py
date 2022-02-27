@@ -735,28 +735,46 @@ class DictRolloutBuffer(RolloutBuffer):
 
     def get(self, batch_size: Optional[int] = None) -> Generator[DictRolloutBufferSamples, None, None]:
         assert self.full, ""
-        indices = np.random.permutation(self.buffer_size * self.n_envs)
-        indices = np.arange(self.buffer_size * self.n_envs)
-        # Prepare the data
-        if not self.generator_ready:
 
+        # Prepare the data
+        if not self.generator_ready: 
             for key, obs in self.observations.items():
                 self.observations[key] = self.swap_and_flatten(obs)
 
-            _tensor_names = ["actions", "values", "log_probs", "advantages", "returns"]
+            _tensor_names = ["actions", "values", "log_probs", "advantages", "returns", "episode_starts"]
 
             for tensor in _tensor_names:
                 self.__dict__[tensor] = self.swap_and_flatten(self.__dict__[tensor])
             self.generator_ready = True
-
+        
         # Return everything, don't create minibatches
         if batch_size is None:
             batch_size = self.buffer_size * self.n_envs
 
+        # === debug
+        indices = np.arange(self.buffer_size * self.n_envs)
+        env_change = np.zeros((self.buffer_size, self.n_envs))
+        # Flag first timestep as change of environment
+        env_change[0, :] = 1.0
+        env_change = self.swap_and_flatten(env_change) 
         start_idx = 0
         while start_idx < self.buffer_size * self.n_envs:
-            yield self._get_samples(indices[start_idx : start_idx + batch_size])
+             
+            # print('buffer size and nenvs', self.buffer_size, self.n_envs)
+            batch_inds = indices[start_idx : start_idx + batch_size]
+            # print(start_idx, batch_inds[0], batch_inds[-1])
+            yield self._get_recurrent_samples(batch_inds, env_change)
+            #yield self._get_samples(indices[start_idx : start_idx + batch_size])
             start_idx += batch_size
+
+
+        # ==== original
+        # indices = np.random.permutation(self.buffer_size * self.n_envs)
+        
+        # start_idx = 0
+        # while start_idx < self.buffer_size * self.n_envs:
+        #     yield self._get_samples(indices[start_idx : start_idx + batch_size])
+        #     start_idx += batch_size
 
     def _get_samples(self, batch_inds: np.ndarray, env: Optional[VecNormalize] = None) -> DictRolloutBufferSamples:
 
@@ -768,3 +786,50 @@ class DictRolloutBuffer(RolloutBuffer):
             advantages=self.to_torch(self.advantages[batch_inds].flatten()),
             returns=self.to_torch(self.returns[batch_inds].flatten()),
         )
+
+    def pad(self, tensor: np.ndarray) -> th.Tensor: # taken from buffers_recurrent.py
+        return self.to_torch(tensor)
+        # print('padding:', sum(self.starts))
+        seq = [self.to_torch(tensor[start : end + 1]) for start, end in zip(self.starts, self.ends)]
+        return th.nn.utils.rnn.pad_sequence(seq)
+    
+    def _get_recurrent_samples( # DEBUG purpose only
+        self,
+        batch_inds: np.ndarray,
+        env_change: np.ndarray,
+        env: Optional[VecNormalize] = None,
+    ) -> DictRolloutBufferSamples:
+        # Create sequence if env change too
+        seq_start = np.logical_or(self.episode_starts[batch_inds], env_change[batch_inds]).flatten()
+        # print('seq start:', sum(seq_start))
+        # First index is always the beginning of a sequence
+        seq_start[0] = True
+        self.starts = np.where(seq_start == True)[0]  # noqa: E712
+        self.ends = np.concatenate([
+            (self.starts - 1)[1:], np.array([len(batch_inds)])
+            ])
+        # print('recurrent dict buffer get:', self.starts, self.ends)
+       
+        n_seq = len(self.starts)
+        max_length = self.pad(self.actions[batch_inds]).shape[0]
+        # TODO: output mask to not backpropagate everywhere
+        # print('actions before and after pad', self.actions[batch_inds].shape, self.pad(self.actions[batch_inds]).shape)
+        padded_batch_size = 2048 # n_seq * max_length
+       
+        observations = {key: self.pad(obs[batch_inds]) for (key, obs) in self.observations.items()}
+        observations = {
+            key: obs.swapaxes(0, 1).reshape((padded_batch_size,) + self.obs_shape[key]) for (key, obs) in observations.items()
+        }
+        # print('observations before and after pad:', \
+        #    self.observations['rgb'][batch_inds].shape, self.pad(observations['rgb'][batch_inds]).shape)
+        #for store in [self.values, self.log_probs, self.advantages, self.returns]:
+        #    print(store.shape, store[batch_inds].shape, self.pad(store[batch_inds]).shape)
+        #    print(self.pad(store[batch_inds]).swapaxes(0, 1).flatten().shape)
+        return DictRolloutBufferSamples(
+            observations=observations,
+            actions=self.pad(self.actions[batch_inds]).swapaxes(0, 1).reshape((padded_batch_size,) + self.actions.shape[1:]),
+            old_values=self.pad(self.values[batch_inds]).swapaxes(0, 1).flatten(),
+            old_log_prob=self.pad(self.log_probs[batch_inds]).swapaxes(0, 1).flatten(),
+            advantages=self.pad(self.advantages[batch_inds]).swapaxes(0, 1).flatten(),
+            returns=self.pad(self.returns[batch_inds]).swapaxes(0, 1).flatten(),
+         )
