@@ -113,6 +113,7 @@ ppo_lstm:
   device:          "cuda"
   _init_setup_model: True  
   recurrent: True 
+  debug_buffer: False 
   buffer_sample_strategy: "default" # "per_env"
 
 

@@ -316,7 +316,7 @@ class RecurrentDictRolloutBuffer(DictRolloutBuffer):
         indices = np.arange(self.buffer_size * self.n_envs)
         indices = np.concatenate((indices[split_index:], indices[:split_index]))
 
-        env_change = np.zeros(self.buffer_size * self.n_envs).reshape(self.buffer_size, self.n_envs)
+        env_change = np.zeros((self.buffer_size, self.n_envs))
         # Flag first timestep as change of environment
         env_change[0, :] = 1.0
         env_change = self.swap_and_flatten(env_change)
@@ -330,6 +330,7 @@ class RecurrentDictRolloutBuffer(DictRolloutBuffer):
             start_idx += batch_size
 
     def pad(self, tensor: np.ndarray) -> th.Tensor:
+        return self.to_torch(tensor)
         seq = [self.to_torch(tensor[start : end + 1]) for start, end in zip(self.starts, self.ends)]
         return th.nn.utils.rnn.pad_sequence(seq)
 
@@ -350,7 +351,7 @@ class RecurrentDictRolloutBuffer(DictRolloutBuffer):
         n_seq = len(self.starts)
         max_length = self.pad(self.actions[batch_inds]).shape[0]
         # TODO: output mask to not backpropagate everywhere
-        padded_batch_size = n_seq * max_length
+        padded_batch_size = 2048 # DEBUG!! n_seq * max_length
         lstm_states_pi = (
             # (n_steps, n_layers, n_envs, dim) -> (n_layers, n_seq, dim)
             self.hidden_states_pi[batch_inds][seq_start == True].reshape(n_layers, n_seq, -1),  # noqa: E712
