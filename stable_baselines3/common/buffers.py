@@ -751,7 +751,7 @@ class DictRolloutBuffer(RolloutBuffer):
         if batch_size is None:
             batch_size = self.buffer_size * self.n_envs
 
-        # === debug
+        # === debug to be more like recurrent buffer
         indices = np.arange(self.buffer_size * self.n_envs)
         env_change = np.zeros((self.buffer_size, self.n_envs))
         # Flag first timestep as change of environment
@@ -788,10 +788,17 @@ class DictRolloutBuffer(RolloutBuffer):
         )
 
     def pad(self, tensor: np.ndarray) -> th.Tensor: # taken from buffers_recurrent.py
-        return self.to_torch(tensor)
-        # print('padding:', sum(self.starts))
+        # return self.to_torch(tensor)
+        # print('padding:', tensor.shape)
         seq = [self.to_torch(tensor[start : end + 1]) for start, end in zip(self.starts, self.ends)]
+        # long_seq = []
+        # for s in seq:
+        #     print(s.shape)
+        #     if s.shape[0] == 256:
+        #         long_seq.append(s)
+        # print('after:', th.nn.utils.rnn.pad_sequence(long_seq).shape)
         return th.nn.utils.rnn.pad_sequence(seq)
+        #return th.nn.utils.rnn.pad_sequence(long_seq)
     
     def _get_recurrent_samples( # DEBUG purpose only
         self,
@@ -800,7 +807,9 @@ class DictRolloutBuffer(RolloutBuffer):
         env: Optional[VecNormalize] = None,
     ) -> DictRolloutBufferSamples:
         # Create sequence if env change too
-        seq_start = np.logical_or(self.episode_starts[batch_inds], env_change[batch_inds]).flatten()
+        # seq_start = np.logical_or(self.episode_starts[batch_inds], env_change[batch_inds]).flatten()
+        # NOTE: works if ignore episode starts
+        seq_start = env_change[batch_inds].flatten()
         # print('seq start:', sum(seq_start))
         # First index is always the beginning of a sequence
         seq_start[0] = True
@@ -811,20 +820,20 @@ class DictRolloutBuffer(RolloutBuffer):
         # print('recurrent dict buffer get:', self.starts, self.ends)
        
         n_seq = len(self.starts)
-        max_length = self.pad(self.actions[batch_inds]).shape[0]
+        max_length = self.pad(self.actions[batch_inds]).shape[0] 
         # TODO: output mask to not backpropagate everywhere
         # print('actions before and after pad', self.actions[batch_inds].shape, self.pad(self.actions[batch_inds]).shape)
-        padded_batch_size = 2048 # n_seq * max_length
+        # padded_batch_size = n_seq * max_length
+        padded_batch_size = n_seq * max_length
        
         observations = {key: self.pad(obs[batch_inds]) for (key, obs) in self.observations.items()}
         observations = {
             key: obs.swapaxes(0, 1).reshape((padded_batch_size,) + self.obs_shape[key]) for (key, obs) in observations.items()
         }
-        # print('observations before and after pad:', \
-        #    self.observations['rgb'][batch_inds].shape, self.pad(observations['rgb'][batch_inds]).shape)
-        #for store in [self.values, self.log_probs, self.advantages, self.returns]:
-        #    print(store.shape, store[batch_inds].shape, self.pad(store[batch_inds]).shape)
-        #    print(self.pad(store[batch_inds]).swapaxes(0, 1).flatten().shape)
+        # observations = {
+        #     key: obs.reshape((padded_batch_size,) + self.obs_shape[key]) for (key, obs) in observations.items()
+        # }
+        
         return DictRolloutBufferSamples(
             observations=observations,
             actions=self.pad(self.actions[batch_inds]).swapaxes(0, 1).reshape((padded_batch_size,) + self.actions.shape[1:]),
@@ -833,3 +842,11 @@ class DictRolloutBuffer(RolloutBuffer):
             advantages=self.pad(self.advantages[batch_inds]).swapaxes(0, 1).flatten(),
             returns=self.pad(self.returns[batch_inds]).swapaxes(0, 1).flatten(),
          )
+        # return DictRolloutBufferSamples(
+        #     observations=observations,
+        #     actions=self.pad(self.actions[batch_inds]),
+        #     old_values=self.pad(self.values[batch_inds]).flatten(),
+        #     old_log_prob=self.pad(self.log_probs[batch_inds]).flatten(),
+        #     advantages=self.pad(self.advantages[batch_inds]).flatten(),
+        #     returns=self.pad(self.returns[batch_inds]).flatten(),
+        #  )

@@ -314,7 +314,7 @@ class RecurrentDictRolloutBuffer(DictRolloutBuffer):
         # but split the indices in two
         split_index = np.random.randint(self.buffer_size * self.n_envs)
         indices = np.arange(self.buffer_size * self.n_envs)
-        indices = np.concatenate((indices[split_index:], indices[:split_index]))
+        # indices = np.concatenate((indices[split_index:], indices[:split_index]))
 
         env_change = np.zeros((self.buffer_size, self.n_envs))
         # Flag first timestep as change of environment
@@ -330,7 +330,7 @@ class RecurrentDictRolloutBuffer(DictRolloutBuffer):
             start_idx += batch_size
 
     def pad(self, tensor: np.ndarray) -> th.Tensor:
-        return self.to_torch(tensor)
+        # return self.to_torch(tensor)
         seq = [self.to_torch(tensor[start : end + 1]) for start, end in zip(self.starts, self.ends)]
         return th.nn.utils.rnn.pad_sequence(seq)
 
@@ -341,7 +341,8 @@ class RecurrentDictRolloutBuffer(DictRolloutBuffer):
         env: Optional[VecNormalize] = None,
     ) -> RecurrentDictRolloutBufferSamples:
         # Create sequence if env change too
-        seq_start = np.logical_or(self.episode_starts[batch_inds], env_change[batch_inds]).flatten()
+        # seq_start = np.logical_or(self.episode_starts[batch_inds], env_change[batch_inds]).flatten()
+        seq_start = env_change[batch_inds].flatten()
         # First index is always the beginning of a sequence
         seq_start[0] = True
         self.starts = np.where(seq_start == True)[0]  # noqa: E712
@@ -351,7 +352,7 @@ class RecurrentDictRolloutBuffer(DictRolloutBuffer):
         n_seq = len(self.starts)
         max_length = self.pad(self.actions[batch_inds]).shape[0]
         # TODO: output mask to not backpropagate everywhere
-        padded_batch_size = 2048 # DEBUG!! n_seq * max_length
+        padded_batch_size = n_seq * max_length
         lstm_states_pi = (
             # (n_steps, n_layers, n_envs, dim) -> (n_layers, n_seq, dim)
             self.hidden_states_pi[batch_inds][seq_start == True].reshape(n_layers, n_seq, -1),  # noqa: E712
@@ -381,3 +382,18 @@ class RecurrentDictRolloutBuffer(DictRolloutBuffer):
             lstm_states=RNNStates(lstm_states_pi, lstm_states_vf),
             episode_starts=self.pad(self.episode_starts[batch_inds]).swapaxes(0, 1).flatten(),
         )
+        # NOTE: swapaxes(0, 1) works fine on original buffer
+        # observations = {
+        #     key: obs.reshape((padded_batch_size,) + self.obs_shape[key]) for (key, obs) in observations.items()
+        # }
+
+        # return RecurrentDictRolloutBufferSamples(
+        #     observations=observations,
+        #     actions=self.pad(self.actions[batch_inds]).reshape((padded_batch_size,) + self.actions.shape[1:]),
+        #     old_values=self.pad(self.values[batch_inds]).flatten(),
+        #     old_log_prob=self.pad(self.log_probs[batch_inds]).flatten(),
+        #     advantages=self.pad(self.advantages[batch_inds]).flatten(),
+        #     returns=self.pad(self.returns[batch_inds]).flatten(),
+        #     lstm_states=RNNStates(lstm_states_pi, lstm_states_vf),
+        #     episode_starts=self.pad(self.episode_starts[batch_inds]).flatten(),
+        # )
