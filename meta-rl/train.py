@@ -22,9 +22,7 @@ from custom.callbacks import LogEvalCallback
 from custom.custom_procgen_env import MultiProcGenEnv, make_custom_env
 
 @hydra.main(config_name='config', config_path='conf')
-def main(cfg: DictConfig) -> None:
-
-
+def main(cfg: DictConfig) -> None: 
     # set up log path
     log_path = join(os.getcwd(), 'log', cfg.run_name)
     os.makedirs(log_path, exist_ok=True)
@@ -34,22 +32,26 @@ def main(cfg: DictConfig) -> None:
     os.makedirs(log_path, exist_ok=True) 
     os.makedirs(join(log_path, 'eval'), exist_ok=True) 
     cfg.log_path = log_path 
+    OmegaConf.save(cfg, join(log_path, 'config.yaml'))
     cfg.learn.eval_log_path = join(log_path, 'eval')
     logging.info('Logging to:' + log_path)
  
 
     # set up env
-    env = ProcgenEnv(**(cfg.env.train))
+    if cfg.use_custom:
+        logging.info('Using custom procgen env!, Max number of trials: %d' % cfg.custom_env.train.max_trials)
+        env = SubprocVecEnv([
+            lambda : make_custom_env(cfg.custom_env.train) for i in range(cfg.custom_env.num_train_env)])
+        eval_env =  SubprocVecEnv([
+            lambda : make_custom_env(cfg.custom_env.eval) for i in range(cfg.custom_env.num_eval_env)])
+        
+    else:
+        env = ProcgenEnv(**(cfg.env.train))
+        eval_env = ProcgenEnv(**(cfg.env.eval))
+    
     env = VecMonitor(env)
-
-    eval_env = ProcgenEnv(**(cfg.env.eval))
     eval_env = VecMonitor(eval_env)
-    # env = SubprocVecEnv([
-    #     lambda : make_custom_env(cfg.custom_env.train) for i in range(cfg.custom_env.num_train_env)])
-    # env = VecMonitor(env)
-    # eval_env =  SubprocVecEnv([
-    #     lambda : make_custom_env(cfg.custom_env.eval) for i in range(cfg.custom_env.num_eval_env)])
-    # eval_env = VecMonitor(eval_env)
+        
 
     logging.info(
         f"Using Env: {cfg.env.name}, " + \
@@ -57,20 +59,13 @@ def main(cfg: DictConfig) -> None:
         f"Eval on levels {cfg.env.eval.start_level} - {cfg.env.eval.start_level + cfg.env.eval.num_levels}"
         )
 
-    if cfg.recurrent:
-        model = PPO(env=env, **cfg.ppo_lstm)
-    else:
-        model = PPO(env=env, **cfg.ppo)
+    ppo_cfg = cfg.ppo_lstm if cfg.recurrent else cfg.ppo
+    model = PPO(env=env, **ppo_cfg)
     if cfg.load_run != '':
         toload = join('/home/mandi/stable-baselines3/meta-rl/log', cfg.load_run)
         toload = join(toload, f'eval/models/{cfg.load_step}')
-
-        #print(model.policy.state_dict()['action_net.bias'])
         model = model.load(env=env, path=toload) #'/home/mandi/stable-baselines3/log/log/burn/seed6/eval/best_model.zip')
         print('loaded model:', toload)
-        #print(model.policy.state_dict()['action_net.bias'])
-        #raise ValueError 
-
 
     # create logger object
     strings = ['stdout']

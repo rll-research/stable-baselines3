@@ -1,5 +1,7 @@
 run_name: burn
 log_path: ??? 
+recurrent: False
+use_custom: False 
 
 env:
   name:         'coinrun'
@@ -13,8 +15,8 @@ env:
   eval:
     env_name:    ${env.name}
     num_envs:    64
-    num_levels:  10000 # test on full distribution, following prior work 
-    start_level: ${env.train.num_levels}  # to make it strictly disjoint
+    num_levels:  50 # test on full distribution, following prior work 
+    start_level: 100000 # to make it strictly disjoint
     distribution_mode: ${env.train.distribution_mode}
     restrict_themes: ${env.train.restrict_themes}
   
@@ -24,7 +26,7 @@ custom_env:
   num_eval_env: 64
   train:
     env_name:   ${custom_env.name} 
-    max_trials: 2
+    max_trials: 1
     num_levels: 100
     start_level: 0
     distribution_mode: 'hard'
@@ -33,8 +35,8 @@ custom_env:
   eval:
     env_name:    ${custom_env.name}
     max_trials:  ${custom_env.train.max_trials}
-    num_levels:  100 # test on full distribution, following prior work 
-    start_level: 0 # set to ${env.train.num_levels}  to make it strictly disjoint
+    num_levels:  50 # test on full distribution, following prior work 
+    start_level: 100000 # set to ${env.train.num_levels}  to make it strictly disjoint
     distribution_mode: ${custom_env.train.distribution_mode}
     restrict_themes: ${custom_env.train.restrict_themes}
     is_train: False 
@@ -57,7 +59,7 @@ cnn: NatureCNN
 ppo:
   policy:        MultiInputPolicy
   learning_rate: 5e-4
-  n_steps:      256
+  n_steps:      256 
   batch_size:   2048
   n_epochs:     3
   gamma:        0.99
@@ -81,11 +83,11 @@ ppo:
   _init_setup_model: True  
   recurrent: False 
 
-recurrent: False
+
 ppo_lstm:
   policy: RecurrentMultiInputPolicy 
   learning_rate: 5e-4
-  n_steps:      256
+  n_steps:      256 # 64 to be similar to coinrun episode len? 
   batch_size:   2048
   n_epochs:     3
   gamma:        0.99
