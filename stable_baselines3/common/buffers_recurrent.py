@@ -255,7 +255,6 @@ class RecurrentDictRolloutBuffer(DictRolloutBuffer):
         self.lstm_states = lstm_states
         self.initial_lstm_states = None
         self.sampling_strategy = sampling_strategy
-        assert sampling_strategy == "default", "'per_env' strategy not supported with dict obs"
         super().__init__(buffer_size, observation_space, action_space, device, gae_lambda, gamma, n_envs=n_envs)
 
     def reset(self):
@@ -307,27 +306,64 @@ class RecurrentDictRolloutBuffer(DictRolloutBuffer):
         # Return everything, don't create minibatches
         if batch_size is None:
             batch_size = self.buffer_size * self.n_envs
-        # print('recurrent dict buffer get:', batch_size)
-        # No shuffling:
-        # indices = np.arange(self.buffer_size * self.n_envs)
-        # Trick to shuffle a bit: keep the sequence order
-        # but split the indices in two
-        split_index = np.random.randint(self.buffer_size * self.n_envs)
-        indices = np.arange(self.buffer_size * self.n_envs)
-        # indices = np.concatenate((indices[split_index:], indices[:split_index]))
+        
+        if self.sampling_strategy == "per_env":
+            # ==== OpenAI Baselines way of sampling, constraint in the batch size and number of environments ====
+            n_minibatches = (self.buffer_size * self.n_envs) // batch_size 
+            assert (
+                self.n_envs % n_minibatches == 0
+            ), f"{self.n_envs} not a multiple of {n_minibatches} = {self.buffer_size * self.n_envs} // {batch_size}"
+            n_envs_per_batch = self.n_envs // n_minibatches
 
-        env_change = np.zeros((self.buffer_size, self.n_envs))
-        # Flag first timestep as change of environment
-        env_change[0, :] = 1.0
-        env_change = self.swap_and_flatten(env_change)
+            # Do not shuffle the sequence, only the env indices
+            env_indices = np.random.permutation(self.n_envs)
+            flat_indices = np.arange(self.buffer_size * self.n_envs).reshape(self.n_envs, self.buffer_size)
 
-        start_idx = 0
-        while start_idx < self.buffer_size * self.n_envs:
-            # print('buffer size and nenvs', self.buffer_size, self.n_envs)
-            batch_inds = indices[start_idx : start_idx + batch_size]
-            # print(start_idx, batch_inds.shape)
-            yield self._get_samples(batch_inds, env_change)
-            start_idx += batch_size
+            for start_env_idx in range(0, self.n_envs, n_envs_per_batch):
+                end_env_idx = start_env_idx + n_envs_per_batch
+                mini_batch_env_indices = env_indices[start_env_idx:end_env_idx]
+                batch_inds = flat_indices[mini_batch_env_indices].ravel()
+                lstm_states_pi = (
+                    self.initial_lstm_states.pi[0][:, mini_batch_env_indices].clone(),
+                    self.initial_lstm_states.pi[1][:, mini_batch_env_indices].clone(),
+                )
+                lstm_states_vf = (
+                    self.initial_lstm_states.vf[0][:, mini_batch_env_indices].clone(),
+                    self.initial_lstm_states.vf[1][:, mini_batch_env_indices].clone(),
+                )
+                observations = {key: self.to_torch(obs[batch_inds]) for (key, obs) in self.observations.items()}
+                yield RecurrentRolloutBufferSamples(
+                    observations=observations, 
+                    actions=self.to_torch(self.actions[batch_inds]),
+                    old_values=self.to_torch(self.values[batch_inds].flatten()),
+                    old_log_prob=self.to_torch(self.log_probs[batch_inds].flatten()),
+                    advantages=self.to_torch(self.advantages[batch_inds].flatten()),
+                    returns=self.to_torch(self.returns[batch_inds].flatten()),
+                    lstm_states=RNNStates(lstm_states_pi, lstm_states_vf),
+                    episode_starts=self.to_torch(self.episode_starts[batch_inds].flatten()),
+                )
+        else:
+            # print('recurrent dict buffer get:', batch_size)
+            # No shuffling:
+            # indices = np.arange(self.buffer_size * self.n_envs)
+            # Trick to shuffle a bit: keep the sequence order
+            # but split the indices in two
+            split_index = np.random.randint(self.buffer_size * self.n_envs)
+            indices = np.arange(self.buffer_size * self.n_envs)
+            # indices = np.concatenate((indices[split_index:], indices[:split_index]))
+
+            env_change = np.zeros((self.buffer_size, self.n_envs))
+            # Flag first timestep as change of environment
+            env_change[0, :] = 1.0
+            env_change = self.swap_and_flatten(env_change)
+
+            start_idx = 0
+            while start_idx < self.buffer_size * self.n_envs:
+                # print('buffer size and nenvs', self.buffer_size, self.n_envs)
+                batch_inds = indices[start_idx : start_idx + batch_size]
+                # print(start_idx, batch_inds.shape)
+                yield self._get_samples(batch_inds, env_change)
+                start_idx += batch_size
 
     def pad(self, tensor: np.ndarray) -> th.Tensor:
         # return self.to_torch(tensor)
@@ -342,6 +378,10 @@ class RecurrentDictRolloutBuffer(DictRolloutBuffer):
     ) -> RecurrentDictRolloutBufferSamples:
         # Create sequence if env change too
         # seq_start = np.logical_or(self.episode_starts[batch_inds], env_change[batch_inds]).flatten()
+        # for idx in batch_inds:
+        #     if self.episode_starts[idx]:
+        #         print(self.hidden_states_vf[idx])
+        # raise ValueError
         seq_start = env_change[batch_inds].flatten()
         # First index is always the beginning of a sequence
         seq_start[0] = True
@@ -366,7 +406,7 @@ class RecurrentDictRolloutBuffer(DictRolloutBuffer):
         # print('recurrent dict buffer get:', lstm_states_pi[0].shape)
         lstm_states_pi = (self.to_torch(lstm_states_pi[0]), self.to_torch(lstm_states_pi[1]))
         lstm_states_vf = (self.to_torch(lstm_states_vf[0]), self.to_torch(lstm_states_vf[1]))
-
+ 
         observations = {key: self.pad(obs[batch_inds]) for (key, obs) in self.observations.items()}
         observations = {
             key: obs.swapaxes(0, 1).reshape((padded_batch_size,) + self.obs_shape[key]) for (key, obs) in observations.items()

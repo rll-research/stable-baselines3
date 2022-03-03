@@ -1,5 +1,5 @@
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
-
+from copy import deepcopy 
 import gym
 import numpy as np
 import torch as th
@@ -136,7 +136,7 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
     def _process_sequence(
         features: th.Tensor,
         lstm_states: Tuple[th.Tensor, th.Tensor],
-        episode_starts: th.Tensor,
+        episode_starts: th.Tensor, # size (n_envs), assume all sequence come from the same episode?
         lstm: nn.LSTM,
     ) -> Tuple[th.Tensor, th.Tensor]:
         # LSTM logic
@@ -144,28 +144,39 @@ class RecurrentActorCriticPolicy(ActorCriticPolicy):
         n_envs = lstm_states[0].shape[1]
         # Batch to sequence
         features_sequence = features.reshape((n_envs, -1, lstm.input_size)).swapaxes(0, 1) 
-        # either shape (1, seq_len, features_dim) or (seq_len, n_envs, features_dim)
-        episode_starts = episode_starts.reshape((n_envs, -1)).swapaxes(0, 1)
-
-        lstm_output = []
-        # Iterate over the sequence
-        lstm_states = (th.zeros_like(lstm_states[0]), th.zeros_like(lstm_states[1])) # DEBUG!!
-        # print(features_sequence.shape, lstm_states[0].shape) 
         # features_sequence.shape and lstm_states[0].shape:
-        # - rollout: (1, num_envs, feature_dim), q (num_layers, n_envs, hidden_dim)
-        # - batch update: (seq_len, batch_envs, feature_dim), (num_layers, batch_envs, hidden_dim)
-        for features, episode_start in zip_strict(features_sequence, episode_starts):
-            hidden, lstm_states = lstm(
-                features.unsqueeze(dim=0),
-                (
-                    (1.0 - episode_start).view(1, n_envs, 1) * lstm_states[0],
-                    (1.0 - episode_start).view(1, n_envs, 1) * lstm_states[1],
-                ),
-            )
-            lstm_states = (th.zeros_like(lstm_states[0]), th.zeros_like(lstm_states[1])) # DEBUG!!
-            lstm_output += [hidden]
-        # Sequence to batch
-        lstm_output = th.flatten(th.cat(lstm_output).transpose(0, 1), start_dim=0, end_dim=1)
+        # rollout: (1, num_envs, feature_dim), q (num_layers, n_envs, hidden_dim)
+        # batch update: (seq_len, batch_envs, feature_dim), (num_layers, batch_envs, hidden_dim) 
+        # if features_sequence.shape[0] == 1: # called from collect_rollout
+        #     lstm_states = (
+        #         (1.0 - episode_starts.reshape(1, n_envs, -1)) * lstm_states[0],
+        #         (1.0 - episode_starts.reshape(1, n_envs, -1)) * lstm_states[1],
+        #     )
+        # new version: NOTE assume the sequences each come from the same episode
+        lstm_output, lstm_states = lstm(
+            features_sequence, 
+            lstm_states
+        )
+        # if lstm_output.shape[0] > 1: # sequence length > 1
+        #     [ print(n, lstm_output[-1, n].max()) for n in range(lstm_output.shape[1]) ]
+        #     raise ValueError# lstm_output.shape: (seq_len, batch_envs, hidden_dim)
+        lstm_output = th.flatten(lstm_output.transpose(0, 1), start_dim=0, end_dim=1)  
+
+        # old version:
+        # episode_starts = episode_starts.reshape((n_envs, -1)).swapaxes(0, 1) # 2048 -> seq_len * batch_envs
+        # lstm_output = []
+        # # Iterate over the sequence
+        # for features, episode_start in zip_strict(features_sequence, episode_starts):
+        #     hidden, lstm_states = lstm(
+        #         features.unsqueeze(dim=0),
+        #         (
+        #             (1.0 - episode_start).view(1, n_envs, 1) * lstm_states[0],
+        #             (1.0 - episode_start).view(1, n_envs, 1) * lstm_states[1],
+        #         ),
+        #     ) 
+        #     lstm_output += [hidden] 
+        # # Sequence to batch
+        # lstm_output = th.flatten(th.cat(lstm_output).transpose(0, 1), start_dim=0, end_dim=1)  
         return lstm_output, lstm_states
 
     def forward(

@@ -435,12 +435,13 @@ class PPO(OnPolicyAlgorithm):
         lstm_states = deepcopy(self._last_lstm_states)
 
         while n_steps < n_rollout_steps:
+             
             if self.use_sde and self.sde_sample_freq > 0 and n_steps % self.sde_sample_freq == 0:
                 # Sample a new noise matrix
                 self.policy.reset_noise(env.num_envs)
 
             with th.no_grad():
-                # Convert to pytorch tensor or to TensorDict
+                # Convert to pytorch tensor or to TensorDict 
                 obs_tensor = obs_as_tensor(self._last_obs, self.device)
                 episode_starts = th.tensor(self._last_episode_starts).float().to(self.device)
                 actions, values, log_probs, lstm_states = self.policy.forward(obs_tensor, lstm_states, episode_starts)
@@ -458,11 +459,13 @@ class PPO(OnPolicyAlgorithm):
             self.num_timesteps += env.num_envs
 
             # Give access to local variables
-            callback.update_locals(locals())
+            callback.update_locals(locals()) 
             if callback.on_step() is False:
                 return False
 
-            self._update_info_buffer(infos)
+            self._update_info_buffer(infos) 
+            # infos[0]: {'prev_level_seed': 34, 'prev_level_complete': 1, 'level_seed': 3, 'episode': {'r': 10.0, 'l': 18, 't': 3.220279}}
+            # has 'episode' key only if the episode is complete
             n_steps += 1
 
             if isinstance(self.action_space, gym.spaces.Discrete):
@@ -472,6 +475,14 @@ class PPO(OnPolicyAlgorithm):
             # Handle timeout by bootstraping with value function
             # see GitHub issue #633
             for idx, done_ in enumerate(dones):
+                # if rewards[idx] > 0:
+                #     print('env idx {}, reward: {}'.format(idx, rewards[idx]))
+                if done_:
+                    # set the next initial lstm states to 0! 
+                    lstm_states.pi[0][:, idx] = 0 
+                    lstm_states.pi[1][:, idx] = 0
+                    lstm_states.vf[0][:, idx] = 0
+                    lstm_states.vf[1][:, idx] = 0
                 if (
                     done_
                     and infos[idx].get("terminal_observation") is not None
@@ -487,6 +498,7 @@ class PPO(OnPolicyAlgorithm):
                         episode_starts = th.tensor([False]).float().to(self.device)
                         terminal_value = self.policy.predict_values(terminal_obs, terminal_lstm_state, episode_starts)[0]
                     rewards[idx] += self.gamma * terminal_value
+                    
 
             if self.debug_buffer:
                 rollout_buffer.add(self._last_obs, actions, rewards, self._last_episode_starts, values, log_probs)
