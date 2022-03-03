@@ -1,0 +1,26 @@
+load_run: 'LSTM-1x256-NewProcessSeq-PerEnvSample-Impala-CustonEnv1e5/seed1'
+load_step: 1500
+recurrent: True 
+use_custom: True # manually concat the env 
+log_wb: False 
+total_steps: 128_000 # 00
+log_freq: 1280 # n_steps
+unseen: True 
+env:
+  env_name: coinrun
+  num_envs: 128
+  num_levels: 1 
+  start_level: 100000
+  distribution_mode: 'hard'
+  restrict_themes: False
+
+
+wandb:
+  project:   'ProcGen'
+  entity:    mannndi
+  job_type: 'train'
+  group:    'MT-PPO'
+
+hydra:
+  run:
+    dir: '/home/mandi/stable-baselines3/meta-rl/'
