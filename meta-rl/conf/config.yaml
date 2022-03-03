@@ -77,6 +77,7 @@ ppo:
   policy_kwargs:   
     features_extractor_kwargs:  
       cnn_arch:   ${cnn} # ImpalaCNN
+      normalize_images: True 
   verbose:         ${vb}
   seed:            123
   device:          "cuda"
@@ -109,6 +110,7 @@ ppo_lstm:
     n_lstm_layers:    2
     shared_lstm:     True 
     enable_critic_lstm: False
+    normalize_images: True 
     
   verbose:         ${vb}
   seed:            123

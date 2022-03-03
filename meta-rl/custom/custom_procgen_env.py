@@ -44,12 +44,12 @@ class MultiProcGenEnv(gym.Env):
         # action shape: (15,) - Discrete
         # obs shape: (64, 64, 3) - RGB
         self.action_space = self.env.action_space
-        # self.observation_space = spaces.Dict(
-        #     {'rgb': spaces.Box(low=-25.0, high=255.0, shape=(65, 64, 3))}
-        # )
         self.observation_space = spaces.Dict(
-            {'rgb': spaces.Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)}
+            {'rgb': spaces.Box(low=-25.0, high=255.0, shape=(65, 64, 3))}
         )
+        # self.observation_space = spaces.Dict(
+        #     {'rgb': spaces.Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)}
+        # )
         # self.observation_space = spaces.Dict({
         #     'rgb': spaces.Box(low=0, high=255, shape=(64, 64, 3)),
         #     'prev_action': spaces.Box(low=0, high=15, shape=(1,)),
@@ -73,9 +73,9 @@ class MultiProcGenEnv(gym.Env):
         # 4 is no action in procgen
         extras = np.zeros((1, 64, 3), dtype=np.float32)
         extras[0, :] = [4, 0.0, 0.0]
-        # cust_obs = np.concatenate([curr_obs/255.0, extras], axis=0)
-        # return {'rgb': cust_obs}
-        return {'rgb': curr_obs}
+        cust_obs = np.concatenate([curr_obs/255.0, extras], axis=0)
+        return {'rgb': cust_obs}
+        # return {'rgb': curr_obs}
 
     def seed(self, seed):
         return 
@@ -90,8 +90,8 @@ class MultiProcGenEnv(gym.Env):
             extras[0, :] = [4, 0.0, 0.0]
             cust_obs = np.concatenate([next_obs/255.0, extras], axis=0)
             info = {'trial_num': self.trial_num}
-            # return {'rgb': cust_obs}, 0.0, False, {}
-            return {'rgb': next_obs}, 0.0, False, info
+            return {'rgb': cust_obs}, 0.0, False, {}
+            # return {'rgb': next_obs}, 0.0, False, info
 
         next_obs, reward, done, info = self.env.step(action)
 
@@ -117,9 +117,10 @@ class MultiProcGenEnv(gym.Env):
                 self.trial_num = 0
 
         
-        # return {'rgb': cust_obs}, reward, done, info
+        
         info['trial_num'] = self.trial_num
-        return {'rgb': next_obs}, reward, done, info
+        return {'rgb': cust_obs}, reward, done, info
+        # return {'rgb': next_obs}, reward, done, info
 
 class RepeatTrialProcgenGym3Env(ProcgenGym3Env):
     def __init__(

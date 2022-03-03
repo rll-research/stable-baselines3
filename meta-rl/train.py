@@ -39,12 +39,12 @@ def main(cfg: DictConfig) -> None:
 
     # set up env
     if cfg.use_custom:
-        logging.info('Using custom procgen env!, Max number of trials: %d' % cfg.custom_env.train.max_trials)
+        logging.info('Using custom procgen env! Max number of trials: %d' % cfg.custom_env.train.max_trials)
         env = SubprocVecEnv([
             lambda : make_custom_env(cfg.custom_env.train) for i in range(cfg.custom_env.num_train_env)])
         eval_env =  SubprocVecEnv([
             lambda : make_custom_env(cfg.custom_env.eval) for i in range(cfg.custom_env.num_eval_env)])
-        
+       
     else:
         env = ProcgenEnv(**(cfg.env.train))
         eval_env = ProcgenEnv(**(cfg.env.eval))
@@ -60,6 +60,8 @@ def main(cfg: DictConfig) -> None:
         )
 
     ppo_cfg = cfg.ppo_lstm if cfg.recurrent else cfg.ppo
+    if cfg.use_custom:
+        ppo_cfg.policy_kwargs.normalize_images = False 
     model = PPO(env=env, **ppo_cfg)
     if cfg.load_run != '':
         toload = join('/home/mandi/stable-baselines3/meta-rl/log', cfg.load_run)
