@@ -66,7 +66,6 @@ def main(cfg: DictConfig) -> None:
     if cfg.load_run != '':
         toload = join('/home/mandi/stable-baselines3/meta-rl/log', cfg.load_run)
         toload = join(toload, f'eval/models/{cfg.load_step}')
-        # print(model.policy.state_dict()['action_net.bias'])
         model = model.load(env=env, path=toload) #'/home/mandi/stable-baselines3/log/log/burn/seed6/eval/best_model.zip')
         print('loaded model:', toload)
 
