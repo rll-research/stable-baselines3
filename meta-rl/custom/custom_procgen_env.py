@@ -18,6 +18,7 @@ class MultiProcGenEnv(gym.Env):
         distribution_mode='hard',
         is_train=True,
         restrict_themes=False,
+        render_mode=False,
     ): 
         self.max_trials = max_trials
         #if not self.train_mode:
@@ -37,7 +38,8 @@ class MultiProcGenEnv(gym.Env):
             num_levels=1,
             start_level=self.start_level,
             distribution_mode=self.distribution_mode,
-            restrict_themes=self.restrict_themes,
+            restrict_themes=self.restrict_themes, 
+            render_mode=render_mode,
             )
 
         # All envs have the same action and obs space
@@ -121,6 +123,9 @@ class MultiProcGenEnv(gym.Env):
         info['trial_num'] = self.trial_num
         return {'rgb': cust_obs}, reward, done, info
         # return {'rgb': next_obs}, reward, done, info
+
+    def render(self, render_mode=None):
+        return self.env.render(mode=render_mode)
 
 class RepeatTrialProcgenGym3Env(ProcgenGym3Env):
     def __init__(

@@ -12,6 +12,7 @@ env:
     start_level: 0
     distribution_mode: 'hard'
     restrict_themes: False
+    # render_mode: rgb_array -> this give 512x512 obs
   eval:
     env_name:    ${env.name}
     num_envs:    64
@@ -83,7 +84,6 @@ ppo:
   device:          "cuda"
   _init_setup_model: True  
   recurrent: False 
-
 
 ppo_lstm:
   policy: RecurrentMultiInputPolicy 

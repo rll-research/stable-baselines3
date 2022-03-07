@@ -433,7 +433,7 @@ class PPO(OnPolicyAlgorithm):
 
         rollout_buffer.initial_lstm_states = deepcopy(self._last_lstm_states)
         lstm_states = deepcopy(self._last_lstm_states)
-
+        # succ, tot = 0, 0 
         while n_steps < n_rollout_steps:
              
             if self.use_sde and self.sde_sample_freq > 0 and n_steps % self.sde_sample_freq == 0:
@@ -475,10 +475,11 @@ class PPO(OnPolicyAlgorithm):
             # Handle timeout by bootstraping with value function
             # see GitHub issue #633
             for idx, done_ in enumerate(dones):
-                # if rewards[idx] > 0:
-                #     print('env idx {}, reward: {}'.format(idx, rewards[idx]))
                 if done_:
                     # set the next initial lstm states to 0! 
+                    # if rewards[idx] > 0:
+                    #     succ += 1
+                    # tot += 1
                     lstm_states.pi[0][:, idx] = 0 
                     lstm_states.pi[1][:, idx] = 0
                     lstm_states.vf[0][:, idx] = 0
@@ -515,7 +516,8 @@ class PPO(OnPolicyAlgorithm):
             self._last_obs = new_obs
             self._last_episode_starts = dones
             self._last_lstm_states = lstm_states
-
+        # print('success rate:', succ/tot)
+        # raise NotImplementedError
         with th.no_grad():
             # Compute value for the last timestep
             episode_starts = th.tensor(dones).float().to(self.device)

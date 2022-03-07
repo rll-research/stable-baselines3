@@ -3,6 +3,7 @@ meta-rl/log/*
 meta-rl/outputs
 meta-rl/wandb
 meta-rl/*.png
+meta-rl/videos/*
 
 *.log
 

@@ -1,7 +1,11 @@
 import os
+import gym
+import numpy as np
 import logging
+import torch as th 
 from os.path import join
 from stable_baselines3 import PPO
+from stable_baselines3.common.utils import explained_variance, get_schedule_fn, obs_as_tensor
 import hydra 
 from omegaconf import DictConfig, OmegaConf, ListConfig
 from procgen import ProcgenEnv
@@ -32,7 +36,7 @@ def main(cfg: DictConfig) -> None:
     os.makedirs(log_path, exist_ok=True) 
     os.makedirs(join(log_path, 'eval'), exist_ok=True) 
     cfg.log_path = log_path 
-    OmegaConf.save(cfg, join(log_path, 'config.yaml'))
+    
     cfg.learn.eval_log_path = join(log_path, 'eval')
     logging.info('Logging to:' + log_path)
  
@@ -62,6 +66,8 @@ def main(cfg: DictConfig) -> None:
     ppo_cfg = cfg.ppo_lstm if cfg.recurrent else cfg.ppo
     if cfg.use_custom:
         ppo_cfg.policy_kwargs.normalize_images = False 
+    OmegaConf.save(cfg, join(log_path, 'config.yaml'))
+    
     model = PPO(env=env, **ppo_cfg)
     if cfg.load_run != '':
         toload = join('/home/mandi/stable-baselines3/meta-rl/log', cfg.load_run)
@@ -95,7 +101,9 @@ def main(cfg: DictConfig) -> None:
             model_save_path=cfg.learn.eval_log_path,
             verbose=cfg.vb
             )
-        ]
+        ] 
+        
+    # train model
     model.learn(
         callback=callback,
         eval_env=eval_env,
