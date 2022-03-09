@@ -1,0 +1,6 @@
+name: MultiInputPolicy
+kwargs:   
+  features_extractor_kwargs:  
+    cnn_arch:   ${cnn} # ImpalaCNN
+    normalize_images: True 
+recurrent: False

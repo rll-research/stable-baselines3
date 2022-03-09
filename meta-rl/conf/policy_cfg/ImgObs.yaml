@@ -1,0 +1,4 @@
+name: CnnPolicy
+kwargs:   
+  features_extractor_class: ${cnn}
+recurrent: False 

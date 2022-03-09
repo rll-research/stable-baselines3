@@ -18,7 +18,6 @@ class MultiProcGenEnv(gym.Env):
         distribution_mode='hard',
         is_train=True,
         restrict_themes=False,
-        render_mode=False,
     ): 
         self.max_trials = max_trials
         #if not self.train_mode:
@@ -38,8 +37,7 @@ class MultiProcGenEnv(gym.Env):
             num_levels=1,
             start_level=self.start_level,
             distribution_mode=self.distribution_mode,
-            restrict_themes=self.restrict_themes, 
-            render_mode=render_mode,
+            restrict_themes=self.restrict_themes,  
             )
 
         # All envs have the same action and obs space
@@ -47,7 +45,13 @@ class MultiProcGenEnv(gym.Env):
         # obs shape: (64, 64, 3) - RGB
         self.action_space = self.env.action_space
         self.observation_space = spaces.Dict(
-            {'rgb': spaces.Box(low=-25.0, high=255.0, shape=(65, 64, 3))}
+            {
+                # 'rgb': spaces.Box(low=-25.0, high=255.0, shape=(65, 64, 3)),
+                'rgb': spaces.Box(low=0, high=255, shape=(64, 64, 3)),
+                'rew': spaces.Box(low=0.0, high=10.0 * (max_trials+1), shape=(1,)),
+                'done': spaces.Box(low=0.0, high=1.0, shape=(1,)),
+                'action': spaces.Box(low=0.0, high=1.0, shape=(15,)), # one-hot
+                }
         )
         # self.observation_space = spaces.Dict(
         #     {'rgb': spaces.Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)}
@@ -75,9 +79,13 @@ class MultiProcGenEnv(gym.Env):
         # 4 is no action in procgen
         extras = np.zeros((1, 64, 3), dtype=np.float32)
         extras[0, :] = [4, 0.0, 0.0]
-        cust_obs = np.concatenate([curr_obs/255.0, extras], axis=0)
-        return {'rgb': cust_obs}
-        # return {'rgb': curr_obs}
+        cust_obs = curr_obs # np.concatenate([curr_obs/255.0, extras], axis=0)
+        return {
+                'rgb': cust_obs,
+                'rew': 0.0,
+                'done': 0.0,
+                'action': np.eye(15)[4],
+                }
 
     def seed(self, seed):
         return 
@@ -88,18 +96,24 @@ class MultiProcGenEnv(gym.Env):
 
             next_obs = self.env.reset()
             
-            extras = np.zeros((1, 64, 3), dtype=np.float32)
-            extras[0, :] = [4, 0.0, 0.0]
-            cust_obs = np.concatenate([next_obs/255.0, extras], axis=0)
+            #extras = np.zeros((1, 64, 3), dtype=np.float32)
+            #extras[0, :] = [4, 0.0, 0.0]
+            cust_obs = next_obs # np.concatenate([next_obs/255.0, extras], axis=0)
             info = {'trial_num': self.trial_num}
-            return {'rgb': cust_obs}, 0.0, False, {}
+            obs_dict = {
+                'rgb': cust_obs,
+                'rew': 0.0,
+                'done': 0.0,
+                'action': np.eye(15)[4],
+                }
+            return obs_dict, 0.0, False, {}
             # return {'rgb': next_obs}, 0.0, False, info
 
         next_obs, reward, done, info = self.env.step(action)
 
-        extras = np.zeros((1, 64, 3), dtype=np.float32)
-        extras[0, :] = [action, reward, float(done)]
-        cust_obs = np.concatenate([next_obs/255.0, extras], axis=0)
+        # extras = np.zeros((1, 64, 3), dtype=np.float32)
+        # extras[0, :] = [action, reward, float(done)]
+        cust_obs = next_obs # np.concatenate([next_obs/255.0, extras], axis=0)
         
         if self.reward_scales != None:
             reward *= self.reward_scales 
@@ -121,7 +135,7 @@ class MultiProcGenEnv(gym.Env):
         
         
         info['trial_num'] = self.trial_num
-        return {'rgb': cust_obs}, reward, done, info
+        return {'rgb': cust_obs, 'rew': reward, 'done': float(done), 'action': np.eye(15)[int(action)]}, reward, done, info
         # return {'rgb': next_obs}, reward, done, info
 
     def render(self, render_mode=None):

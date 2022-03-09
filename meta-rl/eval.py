@@ -48,6 +48,7 @@ from stable_baselines3.common.type_aliases import RNNStates
 
 def evaluate_one_level(cfg, env):
     log_rewards = dict()
+    first_rewards = deque(maxlen=256) # first episode!
     final_rewards = deque(maxlen=50)
     model_path = join('/home/mandi/stable-baselines3/meta-rl/log', cfg.load_run)
     load_step = cfg.load_step
@@ -98,7 +99,7 @@ def evaluate_one_level(cfg, env):
         last_obs['rgb'] = np.concatenate([last_obs['rgb']/255.0, extras], axis=1)
         last_obs['rgb'] = np.transpose(last_obs['rgb'], (0, 3, 1, 2))
     dones = np.ones((n_envs,), dtype=bool) # model._last_episode_starts
-
+    first_episode_dones = np.zeros((n_envs,), dtype=bool)
     while n_steps < n_rollout_steps:
         with th.no_grad():
             # Convert to pytorch tensor or to TensorDict
@@ -119,6 +120,9 @@ def evaluate_one_level(cfg, env):
              
             for idx, done_ in enumerate(dones):
                 if done_:
+                    if first_episode_dones[idx] == 0:
+                        first_episode_dones[idx] = 1
+                        first_rewards.append(rewards[idx])
                     # tot_eps[idx] += 1
                     # print(f'finished {tot_eps} episode, reward {current_reward}')
                     if infos[idx].get('episode', None) is not None:
@@ -148,7 +152,7 @@ def evaluate_one_level(cfg, env):
                 lstm_states.vf[1][:, idx] = 0 
         last_obs = new_obs
     # need tne env to have only one level
-    return log_rewards, final_rewards # final
+    return log_rewards, final_rewards, np.mean(first_rewards) if len(first_rewards) > 0 else -1 
 
 
 @hydra.main(config_name='eval_cfg', config_path='conf')
@@ -171,8 +175,8 @@ def main(cfg: DictConfig) -> None:
         env = VecTransposeImage(env)
         print('made env at starting level', start)
   
-        log_rewards, final_rewards = evaluate_one_level(cfg, env)
-        all_levels[start] = (log_rewards, final_rewards)
+        log_rewards, final_rewards, first_rew = evaluate_one_level(cfg, env)
+        all_levels[start] = (log_rewards, final_rewards, first_rew)
 
     log_steps = defaultdict(list)
     for level, logs in all_levels.items():
@@ -199,6 +203,11 @@ def main(cfg: DictConfig) -> None:
     for step in log_means.keys():
         wandb.log(
             {'eval env step': int(step), 'reward_mean': log_means[step], 'reward_std': log_stds[step]},
+        )
+ 
+    for level, logs in all_levels.items():
+        wandb.log(
+            {'eval task level': int(level), 'first episode reward': logs[2] }
         )
     print(log_means, log_stds)
     return 

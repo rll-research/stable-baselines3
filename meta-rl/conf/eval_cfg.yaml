@@ -2,9 +2,9 @@ load_run: 'LSTM-1x256-NewProcessSeq-PerEnvSample-Impala-CustonEnv1e5/seed1'
 load_step: 1500
 recurrent: True 
 use_custom: True # manually concat the env 
-log_wb: False 
-total_steps: 128_000 # 00
-log_freq: 1280 # n_steps
+log_wb:     True
+total_steps: 2_560_00 #00 # 00
+log_freq: 2560  # n_steps
 unseen: True 
 env:
   env_name: coinrun

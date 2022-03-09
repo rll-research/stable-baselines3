@@ -3,10 +3,13 @@ log_path: ???
 recurrent: False
 use_custom: False 
 
-env:
+env: ${procgen}
+env_type: procgen
+
+procgen:
   name:         'coinrun'
   train:
-    env_name:   ${env.name}
+    env_name:   ${procgen.name}
     num_envs:   256 # buffer size == num_envs * ppo.n_steps = 65536
     num_levels: 100
     start_level: 0
@@ -14,19 +17,19 @@ env:
     restrict_themes: False
     # render_mode: rgb_array -> this give 512x512 obs
   eval:
-    env_name:    ${env.name}
+    env_name:    ${procgen.name}
     num_envs:    64
     num_levels:  50 # test on full distribution, following prior work 
     start_level: 100000 # to make it strictly disjoint
-    distribution_mode: ${env.train.distribution_mode}
-    restrict_themes: ${env.train.restrict_themes}
+    distribution_mode: ${procgen.train.distribution_mode}
+    restrict_themes: ${procgen.train.restrict_themes}
   
-custom_env:
+procgen_custom:
   name:         'coinrun'
   num_train_env:   256 
   num_eval_env: 64
   train:
-    env_name:   ${custom_env.name} 
+    env_name:   ${procgen_custom.name} 
     max_trials: 1
     num_levels: 100
     start_level: 0
@@ -34,13 +37,18 @@ custom_env:
     restrict_themes: False
     is_train: True
   eval:
-    env_name:    ${custom_env.name}
-    max_trials:  ${custom_env.train.max_trials}
+    env_name:    ${procgen_custom.name}
+    max_trials:  ${procgen_custom.train.max_trials}
     num_levels:  50 # test on full distribution, following prior work 
     start_level: 100000 # set to ${env.train.num_levels}  to make it strictly disjoint
-    distribution_mode: ${custom_env.train.distribution_mode}
-    restrict_themes: ${custom_env.train.restrict_themes}
+    distribution_mode: ${procgen_custom.train.distribution_mode}
+    restrict_themes: ${procgen_custom.train.restrict_themes}
     is_train: False 
+
+atari:
+  env_ids: ['Asteroids', 'Breakout', 'BeamRider', 'Seaquest', ] # action space: Discrete(14) Discrete(4) Discrete(9) Discrete(18) 
+  n_envs: 8 
+
 
 vb: 0 
 log_wb: True 
@@ -56,9 +64,15 @@ learn:
   tb_log_name:     "PPO"
   eval_log_path:   ???
   reset_num_timesteps: True 
+
+
 cnn: NatureCNN
+defaults:
+ - policy_cfg: ???
+
+
 ppo:
-  policy:        MultiInputPolicy
+  policy:        ${policy_cfg.name} 
   learning_rate: 5e-4
   n_steps:      256 
   batch_size:   2048
@@ -75,51 +89,14 @@ ppo:
   target_kl:       0.01
   # tensorboard_log: None
   create_eval_env: True 
-  policy_kwargs:   
-    features_extractor_kwargs:  
-      cnn_arch:   ${cnn} # ImpalaCNN
-      normalize_images: True 
+  policy_kwargs:   ${policy_cfg.kwargs}
   verbose:         ${vb}
   seed:            123
   device:          "cuda"
   _init_setup_model: True  
-  recurrent: False 
-
-ppo_lstm:
-  policy: RecurrentMultiInputPolicy 
-  learning_rate: 5e-4
-  n_steps:      256 # 64 to be similar to coinrun episode len? 
-  batch_size:   2048
-  n_epochs:     3
-  gamma:        0.99
-  gae_lambda:   0.95
-  clip_range:      constant_0.2
-  clip_range_vf:   linear_30.0
-  ent_coef:        0.01
-  vf_coef:         0.5
-  max_grad_norm:   0.5
-  use_sde:         False
-  sde_sample_freq: -1
-  target_kl:       0.01
-  # tensorboard_log: None
-  create_eval_env: True 
-  policy_kwargs:   
-    features_extractor_kwargs:  
-      cnn_arch:   ${cnn} # ImpalaCNN
-    lstm_hidden_size: 128
-    n_lstm_layers:    2
-    shared_lstm:     True 
-    enable_critic_lstm: False
-    normalize_images: True 
-    
-  verbose:         ${vb}
-  seed:            123
-  device:          "cuda"
-  _init_setup_model: True  
-  recurrent: True 
+  recurrent:      ${policy_cfg.recurrent}
   debug_buffer: False 
   buffer_sample_strategy: "default" # "per_env"
-
 
 wandb:
   project:   'ProcGen'

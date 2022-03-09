@@ -330,7 +330,7 @@ class CombinedExtractor(BaseFeaturesExtractor):
         256 to avoid exploding network sizes.
     """
 
-    def __init__(self, observation_space: gym.spaces.Dict, cnn_output_dim: int = 256, cnn_arch: Union[str, None] = 'NatureCNN'):
+    def __init__(self, observation_space: gym.spaces.Dict, cnn_output_dim: int = 256, cnn_arch: Union[str, None] = 'NatureCNN', extra_layer_after_concat: int = -1):
         # TODO we do not know features-dim here before going over all the items, so put something there. This is dirty!
         super(CombinedExtractor, self).__init__(observation_space, features_dim=1)
 
@@ -348,20 +348,33 @@ class CombinedExtractor(BaseFeaturesExtractor):
                 total_concat_size += cnn_output_dim
             else:
                 # The observation key is a vector, flatten it if needed
-                extractors[key] = nn.Flatten()
+                extractors[key] = nn.Flatten() 
                 total_concat_size += get_flattened_obs_dim(subspace)
 
         self.extractors = nn.ModuleDict(extractors)
 
         # Update the features dim manually
         self._features_dim = total_concat_size
+    
+        self.last_mlp = None
+        if extra_layer_after_concat > 0:
+            print(f'Adding extra layer after concatenating CNN outputs with other vectors: inp size: {total_concat_size} output size: {extra_layer_after_concat}')
+            self.last_mlp = nn.Linear(total_concat_size, extra_layer_after_concat)
+            self._features_dim = extra_layer_after_concat
 
     def forward(self, observations: TensorDict) -> th.Tensor:
         encoded_tensor_list = []
 
         for key, extractor in self.extractors.items():
-            encoded_tensor_list.append(extractor(observations[key]))
-        return th.cat(encoded_tensor_list, dim=1)
+            obs = observations[key]
+            if len(obs.shape) > 1:
+                encoded_tensor_list.append(extractor(obs))
+            else:
+                encoded_tensor_list.append(obs[:, None]) 
+        features = th.cat(encoded_tensor_list, dim=1) 
+        if self.last_mlp is not None:
+            features = self.last_mlp(features) 
+        return features
 
 
 def get_actor_critic_arch(net_arch: Union[List[int], Dict[str, List[int]]]) -> Tuple[List[int], List[int]]:
