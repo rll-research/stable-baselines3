@@ -63,11 +63,12 @@ def main(cfg: DictConfig) -> None:
         cfg.env = cfg.atari 
         env_ids = [name+'NoFrameskip-v4' for name in cfg.atari.env_ids]
         env = make_multitask_atari_env(
-            env_ids=env_ids, n_envs=cfg.atari.n_envs)
+            env_ids=env_ids, n_envs=cfg.atari.n_envs, vec_env_cls=SubprocVecEnv,
+            wrapper_kwargs=cfg.atari.wrapper_kwargs)
         env = VecFrameStack(env, n_stack=4)
 
         eval_env = make_multitask_atari_env(
-            env_ids=env_ids, n_envs=cfg.atari.n_envs)
+            env_ids=env_ids, n_envs=cfg.atari.n_envs, vec_env_cls=SubprocVecEnv)
         eval_env = VecFrameStack(eval_env, n_stack=4)
     
     env = VecMonitor(env)

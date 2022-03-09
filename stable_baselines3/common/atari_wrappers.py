@@ -233,7 +233,7 @@ class AtariWrapper(gym.Wrapper):
         frame_skip: int = 4,
         screen_size: int = 84,
         terminal_on_life_loss: bool = True,
-        clip_reward: bool = True,
+        clip_reward: bool = True, 
     ):
         env = NoopResetEnv(env, noop_max=noop_max)
         env = MaxAndSkipEnv(env, skip=frame_skip)

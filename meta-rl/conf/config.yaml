@@ -48,6 +48,9 @@ procgen_custom:
 atari:
   env_ids: ['Asteroids', 'Breakout', 'BeamRider', 'Seaquest', ] # action space: Discrete(14) Discrete(4) Discrete(9) Discrete(18) 
   n_envs: 8 
+  scale_rew: False
+  wrapper_kwargs:
+    scale_reward: ${atari.scale_rew}
 
 
 vb: 0 

@@ -6,12 +6,96 @@ import gym
 from PIL import Image 
 from typing import Any, Callable, Dict, Optional, Type, Union, List
 from stable_baselines3.common.env_util import make_atari_env
-from stable_baselines3.common.atari_wrappers import AtariWrapper
+from stable_baselines3.common.atari_wrappers import * # all the avaliable atari wrappers
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecEnv
 import matplotlib 
 import matplotlib.pyplot as plt
 import numpy as np
+
+MAX_REWARDS = {
+    'Pong': 20,
+    'BeamRider': 4295,
+    'Breakout': 358,
+    'Seaquest': 2000, 
+    'Asteroids': 780,
+    'Enduro': 830,
+}
+
+class ClipScaleRewardEnv(gym.RewardWrapper):
+    """
+    Clips the reward to {+1, 0, -1} by its sign.
+
+    :param env: the environment
+    """
+
+    def __init__(self, env: gym.Env, env_id: str):
+        gym.RewardWrapper.__init__(self, env)
+        env_name = env_id
+        if 'NoFrame' in env_name:
+            env_name = env_id.split('NoFrameskip-v4')[0]
+        assert env_name in MAX_REWARDS, f'{env_name} is not in {MAX_REWARDS}'
+        self.max_reward = MAX_REWARDS[env_name]
+
+
+    def reward(self, reward: float) -> float:
+        """
+        Bin reward to {+1, 0, -1} by its sign.
+
+        :param reward:
+        :return:
+        """
+        return np.sign(reward) / self.max_reward
+
+
+
+class CustomAtariWrapper(gym.Wrapper):
+    """
+    Atari 2600 preprocessings
+
+    Specifically:
+
+    * NoopReset: obtain initial state by taking random number of no-ops on reset.
+    * Frame skipping: 4 by default
+    * Max-pooling: most recent two observations
+    * Termination signal when a life is lost.
+    * Resize to a square image: 84x84 by default
+    * Grayscale observation
+    * Clip reward to {-1, 0, 1}
+
+    :param env: gym environment
+    :param noop_max: max number of no-ops
+    :param frame_skip: the frequency at which the agent experiences the game.
+    :param screen_size: resize Atari frame
+    :param terminal_on_life_loss: if True, then step() returns done=True whenever a life is lost.
+    :param clip_reward: If True (default), the reward is clip to {-1, 0, 1} depending on its sign.
+    """
+
+    def __init__(
+        self,
+        env: gym.Env,
+        noop_max: int = 30,
+        frame_skip: int = 4,
+        screen_size: int = 84,
+        terminal_on_life_loss: bool = True,
+        clip_reward: bool = True, 
+        scale_reward: bool = False, 
+        env_id: str = "PongNoFrameskip-v4",
+    ):
+        env = NoopResetEnv(env, noop_max=noop_max)
+        env = MaxAndSkipEnv(env, skip=frame_skip)
+        if terminal_on_life_loss:
+            env = EpisodicLifeEnv(env)
+        if "FIRE" in env.unwrapped.get_action_meanings():
+            env = FireResetEnv(env)
+        env = WarpFrame(env, width=screen_size, height=screen_size)
+        if clip_reward and scale_reward:
+            env = ClipScaleRewardEnv(env, env_id)
+        elif clip_reward:
+            env = ClipRewardEnv(env)
+
+        super(CustomAtariWrapper, self).__init__(env)
+
 
 def make_multitask_atari_env(
     env_ids: Union[List[str], List[Type[gym.Env]]],
@@ -27,9 +111,6 @@ def make_multitask_atari_env(
     wrapper_kwargs: Optional[Dict[str, Any]] = {}
 ) -> VecEnv:
 
-    def atari_wrapper(env: gym.Env) -> gym.Env:
-        env = AtariWrapper(env, **wrapper_kwargs)
-        return env
     n_games = len(env_ids)
     assert n_envs >= n_games, 'must make sure each game has at least one env'
     
@@ -52,8 +133,8 @@ def make_multitask_atari_env(
                 os.makedirs(monitor_dir, exist_ok=True)
             env = Monitor(env, filename=monitor_path, **monitor_kwargs)
             # Optionally, wrap the environment with the provided wrapper
-            if wrapper_class is not None:
-                env = wrapper_class(env, **wrapper_kwargs)
+            env = CustomAtariWrapper(env, **wrapper_kwargs)
+
             return env
 
         return _init
@@ -75,24 +156,24 @@ def main():
     print('done')
     obs = env.reset()
     print(type(obs), obs.shape)
-    print(env.action_space)
-    actions = np.array([env.action_space.sample() for _ in range(n_envs)])
-    obs = env.step(actions)
-    print('after step', type(obs), obs[0].shape, )
+    # print(env.action_space)
+    # actions = np.array([env.action_space.sample() for _ in range(n_envs)])
+    # obs = env.step(actions)
+    # print('after step', type(obs), obs[0].shape, )
 
-    games = ['Pong']
-    env_ids = [game+'NoFrameskip-v4' for game in games] 
-    env = make_multitask_atari_env(env_ids, n_envs, wrapper_kwargs={'screen_size': 100})
-    obs = env.reset()
-    actions = np.array([np.zeros(8, dtype=np.int) for _ in range(n_envs)])
-    obs = env.step(actions)
-    print('after step', type(obs), obs[0].shape, )
-    # fig, axs = plt.subplots(1, n_envs, figsize=(10*n_envs, 10))
-    # for i, ax in enumerate(axs):
-    #     ax.imshow(obs[i], cmap='gray')
-    #     ax.set_title(games[i], fontsize=60)
-    #     ax.axis('off')
-    # plt.savefig('atari_env.png')
+    # games = ['Pong']
+    # env_ids = [game+'NoFrameskip-v4' for game in games] 
+    # env = make_multitask_atari_env(env_ids, n_envs, wrapper_kwargs={'screen_size': 100})
+    # obs = env.reset()
+    # actions = np.array([np.zeros(8, dtype=np.int) for _ in range(n_envs)])
+    # obs = env.step(actions)
+    # print('after step', type(obs), obs[0].shape, )
+    fig, axs = plt.subplots(1, n_envs, figsize=(10*n_envs, 10))
+    for i, ax in enumerate(axs):
+        ax.imshow(obs[i], cmap='gray')
+        ax.set_title(games[i], fontsize=60)
+        ax.axis('off')
+    plt.savefig('atari_4env.png')
      
 
 if __name__ == "__main__":
