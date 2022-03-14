@@ -56,14 +56,14 @@ def main(cfg: DictConfig) -> None:
         env = make_multitask_atari_env(
             env_ids=env_ids, n_envs=cfg.atari.n_envs, 
             reset_action_space=cfg.atari.reset_action_space,
-            vec_env_cls=None, #SubprocVecEnv,
+            vec_env_cls=(SubprocVecEnv if cfg.atari.use_subproc_vec_env else DummyVecEnv),
             wrapper_kwargs=cfg.atari.wrapper_kwargs)
         env = VecFrameStack(env, n_stack=4)
 
         eval_env = make_multitask_atari_env(
             env_ids=env_ids, n_envs=int(len(env_ids) * 8), 
             reset_action_space=cfg.atari.reset_action_space,
-            vec_env_cls=None,
+            vec_env_cls=(SubprocVecEnv if cfg.atari.use_subproc_vec_env else DummyVecEnv),
             wrapper_kwargs=cfg.atari.eval_wrapper_kwargs
             ) #SubprocVecEnv)
         eval_env = VecFrameStack(eval_env, n_stack=4)
