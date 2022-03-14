@@ -22,12 +22,59 @@ from stable_baselines3.common.vec_env import (
 from stable_baselines3.common.vec_env.subproc_vec_env import SubprocVecEnv
 from stable_baselines3.common.logger import configure as configure_logger
 import wandb 
-from custom.callbacks import LogEvalCallback
+from custom.callbacks import LogEvalCallback, NormalizeBufferRewardCallback
 from custom.custom_procgen_env import MultiProcGenEnv, make_custom_env
 from custom.mt_atari import make_multitask_atari_env
 
 @hydra.main(config_name='config', config_path='conf')
 def main(cfg: DictConfig) -> None: 
+    logging.info('Setting up environments %s', cfg.env_type)
+    # set up env
+    if cfg.env_type == 'procgen':
+        if cfg.use_custom:
+            cfg.env = cfg.procgen_custom 
+            logging.info('Using custom procgen env! Max number of trials: %d' % cfg.procgen_custom.train.max_trials)
+            env = SubprocVecEnv([
+                lambda : make_custom_env(cfg.env.train) for i in range(cfg.env.num_train_env)])
+            eval_env =  SubprocVecEnv([
+                lambda : make_custom_env(cfg.env.eval) for i in range(cfg.env.num_eval_env)])
+            n_envs = cfg.env.num_train_env
+        else:
+            cfg.env = cfg.procgen 
+            env = ProcgenEnv(**(cfg.env.train))
+            eval_env = ProcgenEnv(**(cfg.env.eval))
+            n_envs = cfg.env.train.num_envs
+        
+        logging.info(
+        f"Using Env: {cfg.env.name}, " + \
+        f"Train on levels {cfg.env.train.start_level} - {cfg.env.train.start_level + cfg.env.train.num_levels}, " + \
+        f"Eval on levels {cfg.env.eval.start_level} - {cfg.env.eval.start_level + cfg.env.eval.num_levels}"
+        )
+    elif cfg.env_type == 'atari':
+        cfg.env = cfg.atari 
+        env_ids = [name+'NoFrameskip-v4' for name in cfg.atari.env_ids]
+        env = make_multitask_atari_env(
+            env_ids=env_ids, n_envs=cfg.atari.n_envs, 
+            reset_action_space=cfg.atari.reset_action_space,
+            vec_env_cls=None, #SubprocVecEnv,
+            wrapper_kwargs=cfg.atari.wrapper_kwargs)
+        env = VecFrameStack(env, n_stack=4)
+
+        eval_env = make_multitask_atari_env(
+            env_ids=env_ids, n_envs=int(len(env_ids) * 8), 
+            reset_action_space=cfg.atari.reset_action_space,
+            vec_env_cls=None,
+            wrapper_kwargs=cfg.atari.eval_wrapper_kwargs
+            ) #SubprocVecEnv)
+        eval_env = VecFrameStack(eval_env, n_stack=4)
+        n_envs = cfg.atari.n_envs
+    else:
+        raise NotImplementedError('Unknown env type: %s' % cfg.env_type)
+    
+    env = VecMonitor(env)
+    eval_env = VecMonitor(eval_env)
+
+    cfg.run_name += f'-{n_envs}Envs-{cfg.ppo.batch_size}Batch'
     # set up log path
     log_path = join(os.getcwd(), 'log', cfg.run_name)
     os.makedirs(log_path, exist_ok=True)
@@ -40,49 +87,10 @@ def main(cfg: DictConfig) -> None:
     
     cfg.learn.eval_log_path = join(log_path, 'eval')
     logging.info('Logging to:' + log_path)
- 
-    # set up env
-    if cfg.env_type == 'procgen':
-        if cfg.use_custom:
-            cfg.env = cfg.custom_env
-            logging.info('Using custom procgen env! Max number of trials: %d' % cfg.custom_env.train.max_trials)
-            env = SubprocVecEnv([
-                lambda : make_custom_env(cfg.custom_env.train) for i in range(cfg.custom_env.num_train_env)])
-            eval_env =  SubprocVecEnv([
-                lambda : make_custom_env(cfg.custom_env.eval) for i in range(cfg.custom_env.num_eval_env)])
-        
-        else:
-            env = ProcgenEnv(**(cfg.env.train))
-            eval_env = ProcgenEnv(**(cfg.env.eval))
-        logging.info(
-        f"Using Env: {cfg.env.name}, " + \
-        f"Train on levels {cfg.env.train.start_level} - {cfg.env.train.start_level + cfg.env.train.num_levels}, " + \
-        f"Eval on levels {cfg.env.eval.start_level} - {cfg.env.eval.start_level + cfg.env.eval.num_levels}"
-        )
-    elif cfg.env_type == 'atari':
-        cfg.env = cfg.atari 
-        env_ids = [name+'NoFrameskip-v4' for name in cfg.atari.env_ids]
-        env = make_multitask_atari_env(
-            env_ids=env_ids, n_envs=cfg.atari.n_envs, vec_env_cls=SubprocVecEnv,
-            wrapper_kwargs=cfg.atari.wrapper_kwargs)
-        env = VecFrameStack(env, n_stack=4)
 
-        eval_env = make_multitask_atari_env(
-            env_ids=env_ids, n_envs=cfg.atari.n_envs, vec_env_cls=SubprocVecEnv)
-        eval_env = VecFrameStack(eval_env, n_stack=4)
-    
-    env = VecMonitor(env)
-    eval_env = VecMonitor(eval_env)
-        
-
-    
-
-    ppo_cfg = cfg.ppo_lstm if cfg.recurrent else cfg.ppo
-    # if cfg.use_custom:
-    #     ppo_cfg.policy_kwargs.normalize_images = False 
     OmegaConf.save(cfg, join(log_path, 'config.yaml'))
     
-    model = PPO(env=env, **ppo_cfg)
+    model = PPO(env=env, **cfg.ppo)
     if cfg.load_run != '':
         toload = join('/home/mandi/stable-baselines3/meta-rl/log', cfg.load_run)
         toload = join(toload, f'eval/models/{cfg.load_step}')
@@ -93,7 +101,7 @@ def main(cfg: DictConfig) -> None:
     strings = ['stdout']
     if cfg.log_wb:
         run = wandb.init(
-            name=(log_path.split('/')[-2]), 
+            name=cfg.run_name, 
             config=dict(cfg),
             **cfg.wandb
             )
@@ -116,6 +124,21 @@ def main(cfg: DictConfig) -> None:
             verbose=cfg.vb
             )
         ] 
+
+    if cfg.buffer_normalize:
+        assert cfg.env_type == 'atari', 'Buffer normalization only works with atari'
+        task_to_envs = {task_i: [] for task_i in range(len(env_ids))}
+        for i in range(n_envs):
+            task_to_envs[int(i % len(env_ids))].append(i)
+
+        callback.append(
+            NormalizeBufferRewardCallback(
+                rollout_buffer=model.rollout_buffer,
+                task_to_envs=task_to_envs,
+                subtract_mean=cfg.subtract_mean,
+                verbose=cfg.vb
+                )
+            )
 
     # train model
     model.learn(

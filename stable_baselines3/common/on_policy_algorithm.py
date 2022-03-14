@@ -217,9 +217,11 @@ class OnPolicyAlgorithm(BaseAlgorithm):
             # Compute value for the last timestep
             values = self.policy.predict_values(obs_as_tensor(new_obs, self.device))
 
+        callback.on_rollout_end() # NOTE(Mandi): this was originally called **afte** compute_returns_and_advantages
+
         rollout_buffer.compute_returns_and_advantage(last_values=values, dones=dones)
 
-        callback.on_rollout_end()
+        
 
         return True
 

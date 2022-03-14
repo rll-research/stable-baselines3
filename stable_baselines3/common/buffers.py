@@ -752,29 +752,29 @@ class DictRolloutBuffer(RolloutBuffer):
             batch_size = self.buffer_size * self.n_envs
 
         # === debug to be more like recurrent buffer
-        indices = np.arange(self.buffer_size * self.n_envs)
-        env_change = np.zeros((self.buffer_size, self.n_envs))
-        # Flag first timestep as change of environment
-        env_change[0, :] = 1.0
-        env_change = self.swap_and_flatten(env_change) 
-        start_idx = 0
-        while start_idx < self.buffer_size * self.n_envs:
+        # indices = np.arange(self.buffer_size * self.n_envs)
+        # env_change = np.zeros((self.buffer_size, self.n_envs))
+        # # Flag first timestep as change of environment
+        # env_change[0, :] = 1.0
+        # env_change = self.swap_and_flatten(env_change) 
+        # start_idx = 0
+        # while start_idx < self.buffer_size * self.n_envs:
              
-            # print('buffer size and nenvs', self.buffer_size, self.n_envs)
-            batch_inds = indices[start_idx : start_idx + batch_size]
-            # print(start_idx, batch_inds[0], batch_inds[-1])
-            yield self._get_recurrent_samples(batch_inds, env_change)
-            #yield self._get_samples(indices[start_idx : start_idx + batch_size])
-            start_idx += batch_size
+        #     # print('buffer size and nenvs', self.buffer_size, self.n_envs)
+        #     batch_inds = indices[start_idx : start_idx + batch_size]
+        #     # print(start_idx, batch_inds[0], batch_inds[-1])
+        #     yield self._get_recurrent_samples(batch_inds, env_change)
+        #     #yield self._get_samples(indices[start_idx : start_idx + batch_size])
+        #     start_idx += batch_size
 
 
         # ==== original
-        # indices = np.random.permutation(self.buffer_size * self.n_envs)
+        indices = np.random.permutation(self.buffer_size * self.n_envs)
         
-        # start_idx = 0
-        # while start_idx < self.buffer_size * self.n_envs:
-        #     yield self._get_samples(indices[start_idx : start_idx + batch_size])
-        #     start_idx += batch_size
+        start_idx = 0
+        while start_idx < self.buffer_size * self.n_envs:
+            yield self._get_samples(indices[start_idx : start_idx + batch_size])
+            start_idx += batch_size
 
     def _get_samples(self, batch_inds: np.ndarray, env: Optional[VecNormalize] = None) -> DictRolloutBufferSamples:
 

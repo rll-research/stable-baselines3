@@ -45,12 +45,19 @@ procgen_custom:
     restrict_themes: ${procgen_custom.train.restrict_themes}
     is_train: False 
 
+buffer_normalize: False 
+subtract_mean: False
 atari:
   env_ids: ['Asteroids', 'Breakout', 'BeamRider', 'Seaquest', ] # action space: Discrete(14) Discrete(4) Discrete(9) Discrete(18) 
   n_envs: 8 
   scale_rew: False
   wrapper_kwargs:
     scale_reward: ${atari.scale_rew}
+    terminal_on_life_loss: True
+  eval_wrapper_kwargs:
+    scale_reward: False
+    terminal_on_life_loss: ${atari.wrapper_kwargs.terminal_on_life_loss}
+  reset_action_space: -1  # for loading 4task agent to new task
 
 
 vb: 0 
@@ -83,7 +90,7 @@ ppo:
   gamma:        0.99
   gae_lambda:   0.95
   clip_range:      constant_0.2
-  clip_range_vf:   linear_30.0
+  # clip_range_vf:   linear_30.0 # comment out for Atari
   ent_coef:        0.01
   vf_coef:         0.5
   max_grad_norm:   0.5

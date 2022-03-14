@@ -12,6 +12,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecEnv
 import matplotlib 
 import matplotlib.pyplot as plt
 import numpy as np
+from stable_baselines3.common.type_aliases import GymObs, GymStepReturn
 
 MAX_REWARDS = {
     'Pong': 20,
@@ -21,6 +22,18 @@ MAX_REWARDS = {
     'Asteroids': 780,
     'Enduro': 830,
 }
+
+class MaskAction(gym.Wrapper):
+    def __init__(self, env: gym.Env, handle_as: int = 0):
+        gym.Wrapper.__init__(self, env)
+        self.max_action = env.action_space.n
+        self.handle_as = handle_as
+        assert handle_as < self.max_action, 'Cannot replace invaid action with {}'.format(handle_as)
+
+    def step(self, action: int) -> GymStepReturn:
+        if action >= self.max_action:
+            action = self.handle_as
+        return self.env.step(action)
 
 class ClipScaleRewardEnv(gym.RewardWrapper):
     """
@@ -84,11 +97,13 @@ class CustomAtariWrapper(gym.Wrapper):
     ):
         env = NoopResetEnv(env, noop_max=noop_max)
         env = MaxAndSkipEnv(env, skip=frame_skip)
+        env = MaskAction(env)
         if terminal_on_life_loss:
             env = EpisodicLifeEnv(env)
-        if "FIRE" in env.unwrapped.get_action_meanings():
+        if "FIRE" in env.unwrapped.get_action_meanings(): 
             env = FireResetEnv(env)
         env = WarpFrame(env, width=screen_size, height=screen_size)
+        
         if clip_reward and scale_reward:
             env = ClipScaleRewardEnv(env, env_id)
         elif clip_reward:
@@ -108,7 +123,8 @@ def make_multitask_atari_env(
     vec_env_cls: Optional[Type[Union[DummyVecEnv, SubprocVecEnv]]] = None,
     vec_env_kwargs: Optional[Dict[str, Any]] = {},
     monitor_kwargs: Optional[Dict[str, Any]] = {},
-    wrapper_kwargs: Optional[Dict[str, Any]] = {}
+    wrapper_kwargs: Optional[Dict[str, Any]] = {},
+    reset_action_space: int = -1, 
 ) -> VecEnv:
 
     n_games = len(env_ids)
@@ -129,10 +145,11 @@ def make_multitask_atari_env(
             # to have additional training information
             monitor_path = os.path.join(monitor_dir, str(rank)) if monitor_dir is not None else None
             # Create the monitor folder if needed
-            if monitor_path is not None:
-                os.makedirs(monitor_dir, exist_ok=True)
-            env = Monitor(env, filename=monitor_path, **monitor_kwargs)
+            # if monitor_path is not None:
+            #    os.makedirs(monitor_dir, exist_ok=True)
+            # env = Monitor(env, filename=monitor_path, **monitor_kwargs)
             # Optionally, wrap the environment with the provided wrapper
+            # print(env_id, 'FIRE?', "FIRE" in env.unwrapped.get_action_meanings())
             env = CustomAtariWrapper(env, **wrapper_kwargs)
 
             return env
@@ -143,37 +160,48 @@ def make_multitask_atari_env(
         # Default: use a DummyVecEnv
         vec_env_cls = DummyVecEnv
 
-    return vec_env_cls([make_env(i + start_index) for i in range(n_envs)], **vec_env_kwargs)
+    tmp_envs = [gym.make(env_id, **env_kwargs) for env_id in env_ids]
+    max_action = max([env.action_space.n for env in tmp_envs])
+    if reset_action_space > 0:
+        max_action = reset_action_space
+
+    env_fns = [make_env(i + start_index) for i in range(n_envs)] 
+    vec_env = vec_env_cls(env_fns, **vec_env_kwargs)
+    print('Reset action space range for envs: {}'.format(max_action), [env.action_space.n for env in tmp_envs])
+    del tmp_envs
+
+    vec_env.action_space = gym.spaces.Discrete(max_action)
+    return vec_env
     
     
 
 def main():
-    games = ['Breakout', 'BeamRider', 'Seaquest', 'Asteroids'] # ['Pong', 'BeamRider', 'Breakout'] # , 'Enduro', 'Qbert', 'Seaquest', 'SpaceInvaders', 'Asteroids', 'RoadRunner']
-    env_ids = [game+'NoFrameskip-v4' for game in games] #	Pong	Qbert	Seaquest	SpaceInvaders
+    games = ['Breakout', 'BeamRider', 'Seaquest', 'Asteroids', 'Pong'] # 'BeamRider', 'Breakout'] # , 'Enduro', 'Qbert', 'Seaquest', 'SpaceInvaders', 'Asteroids', 'RoadRunner']
+    # env_ids = [game+'NoFrameskip-v4' for game in games] #	Pong	Qbert	Seaquest	SpaceInvaders
     n_envs = len(games)
-    print('making env')
-    env = make_multitask_atari_env(env_ids, n_envs, wrapper_kwargs={'screen_size': 200})
-    print('done')
-    obs = env.reset()
-    print(type(obs), obs.shape)
+    # print('making env')
+    # env = make_multitask_atari_env(env_ids, n_envs, wrapper_kwargs={'screen_size': 200})
+    # print('done')
+    # obs = env.reset()
+    # print(type(obs), obs.shape)
     # print(env.action_space)
     # actions = np.array([env.action_space.sample() for _ in range(n_envs)])
     # obs = env.step(actions)
     # print('after step', type(obs), obs[0].shape, )
 
     # games = ['Pong']
-    # env_ids = [game+'NoFrameskip-v4' for game in games] 
-    # env = make_multitask_atari_env(env_ids, n_envs, wrapper_kwargs={'screen_size': 100})
-    # obs = env.reset()
-    # actions = np.array([np.zeros(8, dtype=np.int) for _ in range(n_envs)])
-    # obs = env.step(actions)
-    # print('after step', type(obs), obs[0].shape, )
-    fig, axs = plt.subplots(1, n_envs, figsize=(10*n_envs, 10))
-    for i, ax in enumerate(axs):
-        ax.imshow(obs[i], cmap='gray')
-        ax.set_title(games[i], fontsize=60)
-        ax.axis('off')
-    plt.savefig('atari_4env.png')
+    env_ids = [game+'NoFrameskip-v4' for game in games] 
+    env = make_multitask_atari_env(env_ids, n_envs, wrapper_kwargs={'screen_size': 100})
+    obs = env.reset()
+    actions = np.array([8 for _ in range(n_envs)])
+    obs = env.step(actions)
+    print('after step', type(obs), obs[0].shape, )
+    # fig, axs = plt.subplots(1, n_envs, figsize=(10*n_envs, 10))
+    # for i, ax in enumerate(axs):
+    #     ax.imshow(obs[i], cmap='gray')
+    #     ax.set_title(games[i], fontsize=60)
+    #     ax.axis('off')
+    # plt.savefig('atari_4env.png')
      
 
 if __name__ == "__main__":

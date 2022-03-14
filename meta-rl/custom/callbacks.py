@@ -174,3 +174,45 @@ class LogEvalCallback(EvalCallback):
                         os.path.join(self.model_save_path, f"{update_count}")
                     )
         return True
+
+class NormalizeBufferRewardCallback(BaseCallback):
+    """ Normalize the rewards for each task by its std in current rollout buffer """
+
+    def __init__(
+        self, 
+        rollout_buffer, 
+        task_to_envs, 
+        subtract_mean=False, 
+        memory_length=None,
+        verbose=0):
+        super(NormalizeBufferRewardCallback, self).__init__(verbose=verbose)
+        self.rollout_buffer = rollout_buffer
+        self.task_to_envs = task_to_envs
+        self.subtract_mean = subtract_mean
+        self.task_memory = None
+        if memory_length is not None:
+            self.task_memory = np.zeros(
+                (len(task_to_envs), memory_length))
+            self.pos = 0 
+
+    def _init_callback(self) -> None:
+        return 
+
+    def _on_step(self) -> bool:
+        return True
+
+    def on_rollout_end(self) -> None:
+        assert self.rollout_buffer.full, "Rollout buffer is not full"
+        assert not self.rollout_buffer.generator_ready, "Need to normalize before mini batch sample!"
+        buffer = self.rollout_buffer
+        for task_id, env_ids in self.task_to_envs.items():
+            env_rewards = buffer.rewards[:, env_ids].flatten()
+            # if self.task_memory is not None:
+            #     self.task_memory[task_id, self.pos] = env_rewards
+            std = np.std(env_rewards)
+            if np.isnan(std) or std == 0:
+                std = 1 
+            if self.subtract_mean:
+                buffer.rewards[:, env_ids] -= np.mean(env_rewards)
+            buffer.rewards[:, env_ids] /= std
+             
