@@ -1,3 +1,8 @@
+"""
+
+python train.py run_name=Hard-10-NatureCNN-AllTheme \
+    procgen.train.num_levels=10 learn.total_timesteps=5e6 procgen.eval.num_levels=10 policy_cfg=DictObs
+"""
 import os
 import gym
 import numpy as np
