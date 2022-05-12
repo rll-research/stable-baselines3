@@ -18,7 +18,50 @@ import os
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.type_aliases import RNNStates
 
+def peak():
+    ls = []
+    name='coinrun'
+    # name='starpilot'
+    #for i in [0, 2, 7, 9, 15]:
+    for i in range(10):
+        env = ProcgenEnv(
+        env_name=name, 
+        num_levels=1, 
+        start_level=1000+i, 
+        num_envs=1, 
+        restrict_themes=False, 
+        distribution_mode='hard',
+        render_mode="rgb_array",
+        )
+        env.reset() 
+        ls.append(env.render(mode='rgb_array'))
+        #print(ls[-1].max())
+        #break
+        ls.append(np.ones((512, 100, 3), dtype=np.uint8) * 255)
+        env.close()
+
+    imgs = np.concatenate(ls, axis=1)
+
+    plt.imsave(f'train-{name}.png', imgs)
+
+    # env = ProcgenEnv(
+    #     env_name='coinrun', 
+    #     num_levels=10, 
+    #     start_level=10000, 
+    #     num_envs=10, 
+    #     restrict_themes=False, 
+    #     distribution_mode='hard'
+    #     )
+    # imgs = np.concatenate(env.reset()['rgb'], axis=0)
+    # plt.imsave('ob1_another10.png', imgs)
+
+        
+
+
+
 def main():
+    peak()
+    return 
     n_envs = 1
     modify_env = True 
     max_trials = 5

@@ -91,7 +91,7 @@ class LogEvalCallback(EvalCallback):
         self.num_timesteps = self.model.num_timesteps
         if self.verbose > 2:
             print('Evaluating after trained steps:', self.model._n_updates, update_count)
-        if self.eval_freq > 0 and update_count % self.eval_freq == 0: 
+        if self.eval_freq > 0 and (update_count % self.eval_freq == 0 or update_count == 1): 
             if self.verbose > 1:
                 print(f'Evaluating after {update_count} model update steps')
             if self.model.get_vec_normalize_env() is not None:
