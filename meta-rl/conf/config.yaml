@@ -19,7 +19,7 @@ procgen:
   eval:
     env_name:    ${procgen.name}
     num_envs:    64
-    num_levels:  50 # test on full distribution, following prior work 
+    num_levels:  100 # test on full distribution, following prior work 
     start_level: 100000 # to make it strictly disjoint
     distribution_mode: ${procgen.train.distribution_mode}
     restrict_themes: ${procgen.train.restrict_themes}
@@ -69,17 +69,17 @@ load_step: -1
 learn:
   total_timesteps: 100_000_000 # openai used 200M for hard and 25M for easy
   # callback:        None 
-  log_interval:    10
-  eval_freq:       50 # this is w.r.t. iterations 
-  n_eval_episodes: 1000
+  log_interval:    50
+  eval_freq:       100 # this is w.r.t. iterations 
+  n_eval_episodes: 6400
   tb_log_name:     "PPO"
   eval_log_path:   ???
   reset_num_timesteps: True 
 
 
-cnn: NatureCNN
+cnn: ImpalaCNN # NatureCNN
 defaults:
- - policy_cfg: ???
+ - policy_cfg: DictObs
 
 
 ppo:
