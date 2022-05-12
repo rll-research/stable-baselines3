@@ -108,12 +108,14 @@ ppo:
   recurrent:      ${policy_cfg.recurrent}
   debug_buffer: False 
   buffer_sample_strategy: "default" # "per_env"
+  reptile_k: 0
+  reptile_eps: 1
 
 wandb:
-  project:   'ProcGen'
+  project:   'neurips22'
   entity:    mannndi
   job_type: 'train'
-  group:    'MT-PPO'
+  group:    'Procgen'
 
 hydra:
   run:

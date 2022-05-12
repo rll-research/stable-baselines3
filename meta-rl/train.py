@@ -104,10 +104,21 @@ def main(cfg: DictConfig) -> None:
 
     # create logger object
     strings = ['stdout']
-    if cfg.log_wb:
+    if cfg.log_wb:  
+        wandb_cfg = {}
+        for key, val in cfg.items():
+            if isinstance(val, DictConfig):
+                for k, v in val.items():
+                    if k == 'train' or k == 'eval':
+                        for kk, vv in v.items():
+                            wandb_cfg[f'{key}/{k}/{kk}'] = vv 
+                    else:
+                        wandb_cfg[f'{key}/{k}'] = v
+            else:
+                wandb_cfg[key] = val  
         run = wandb.init(
             name=cfg.run_name, 
-            config=dict(cfg),
+            config=wandb_cfg,
             **cfg.wandb
             )
         strings.append('wandb')
