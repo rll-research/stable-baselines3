@@ -34,6 +34,8 @@ def peak():
         render_mode="rgb_array",
         )
         env.reset() 
+        for _ in range(100):
+            env.step(np.random.randint(0, 10, size=(1,)))
         ls.append(env.render(mode='rgb_array'))
         #print(ls[-1].max())
         #break
@@ -42,7 +44,7 @@ def peak():
 
     imgs = np.concatenate(ls, axis=1)
 
-    plt.imsave(f'train-{name}.png', imgs)
+    plt.imsave(f'train1000-1010-{name}.png', imgs)
 
     # env = ProcgenEnv(
     #     env_name='coinrun', 

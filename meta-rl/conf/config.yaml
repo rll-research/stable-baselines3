@@ -63,8 +63,11 @@ atari:
 
 vb: 0 
 log_wb: True 
+data_path: /home/mandi/stable-baselines3/meta-rl/log
 load_run: ''
 load_step: -1
+eval_only: False
+eval_steps: 1
 
 learn:
   total_timesteps: 100_000_000 # openai used 200M for hard and 25M for easy

@@ -30,9 +30,104 @@ import wandb
 from custom.callbacks import LogEvalCallback, NormalizeBufferRewardCallback
 from custom.custom_procgen_env import MultiProcGenEnv, make_custom_env
 from custom.mt_atari import make_multitask_atari_env
+from copy import deepcopy
+from natsort import natsorted
+from glob import glob
+
+def make_wandb_config(cfg):
+    wandb_cfg = {}
+    for key, val in cfg.items():
+        if isinstance(val, DictConfig):
+            for k, v in val.items():
+                if k == 'train' or k == 'eval':
+                    for kk, vv in v.items():
+                        wandb_cfg[f'{key}/{k}/{kk}'] = vv 
+                else:
+                    wandb_cfg[f'{key}/{k}'] = v
+        else:
+            wandb_cfg[key] = val  
+    return wandb_cfg 
+    
+def evaluate(cfg):
+    assert cfg.env_type == 'procgen' and not cfg.use_custom, 'Only original procgen env is supported for now'
+
+    logging.info(f"Eval **one at a time** on levels {cfg.env.eval.start_level} - {cfg.env.eval.start_level + cfg.env.eval.num_levels}")
+    
+    toload = join(cfg.data_path, cfg.load_run)
+    steps = natsorted(glob(join(toload, 'eval/models/*.zip')))
+    logging.info(f"Load run {cfg.load_run}, found {len(steps)} checkpoints for models")
+    print([step.split('/')[-1] for step in steps])
+
+
+    start = cfg.env.eval.start_level
+    total_levels = cfg.env.eval.num_levels
+    env_cfg = deepcopy(cfg.env.eval)
+    env_cfg.num_levels = 1
+    n_envs = env_cfg.num_envs
+
+    if cfg.log_wb:
+        cfg.wandb.job_type = 'eval'
+        cfg.log_path = ''
+        cfg.learn.eval_log_path = ''
+        wandb_cfg = make_wandb_config(cfg)
+        run = wandb.init(
+            name=cfg.run_name, 
+            config=wandb_cfg,
+            **cfg.wandb
+            )
+    for step in steps:
+        toload = step[:-4] # remove .zip 
+        model_itr = int(toload.split('/')[-1])
+        level_data = dict()
+        for i in range(total_levels):
+            level = start + i
+            env_cfg.start_level = level
+            env = ProcgenEnv(**(env_cfg))
+            env = VecMonitor(env)
+            logging.info('Made env for level {}'.format(start + 1))
+
+            ppo_model = PPO(env=env, **cfg.ppo)
+            model = ppo_model.load(env=env, path=toload) 
+            model.policy.set_training_mode(False) 
+            env = model.env
+            last_obs = env.reset()
+
+            states = None 
+            dones = np.ones((n_envs,), dtype=bool) # model._last_episode_starts
+            episode_starts = np.ones((env.num_envs,), dtype=bool)
+            first_episode_dones = np.zeros((n_envs,), dtype=bool)
+            eps_rews = []
+            while len(eps_rews) < 100:
+                with th.no_grad():
+                    obs_tensor = obs_as_tensor(last_obs, model.device)
+                    forward_act, values, log_probs = model.policy(obs_tensor)
+                    clipped_actions = forward_act.cpu().numpy() # no clip for procgen
+                
+                new_obs, rewards, dones, infos = env.step(clipped_actions)
+                for idx, done_ in enumerate(dones):
+                    episode_starts[idx] = done_
+                    if done_: 
+                        #print('env index {} done, step {}'.format(idx, n_steps), rewards[idx]) #, infos)
+                        eps_rews.append(rewards[idx])
+                last_obs = new_obs
+            
+            mean_rew = np.mean(eps_rews)
+            std_rew = np.std(eps_rews)
+            logging.info(f"Level {level}, model itr {model_itr}, mean reward {mean_rew}, std {std_rew}")
+            level_data[f"level{level}/reward_mean"] = mean_rew
+            level_data[f"level{level}/reward_std"] = std_rew
+
+        level_data['model_itr'] = model_itr
+        if cfg.log_wb:
+            wandb.log(level_data)
+    return
 
 @hydra.main(config_name='config', config_path='conf')
 def main(cfg: DictConfig) -> None: 
+    if cfg.eval_only:
+        print('Running offline eval!')
+        evaluate(cfg)
+        return
     logging.info('Setting up environments %s', cfg.env_type)
     # set up env
     if cfg.env_type == 'procgen':
@@ -105,17 +200,7 @@ def main(cfg: DictConfig) -> None:
     # create logger object
     strings = ['stdout']
     if cfg.log_wb:  
-        wandb_cfg = {}
-        for key, val in cfg.items():
-            if isinstance(val, DictConfig):
-                for k, v in val.items():
-                    if k == 'train' or k == 'eval':
-                        for kk, vv in v.items():
-                            wandb_cfg[f'{key}/{k}/{kk}'] = vv 
-                    else:
-                        wandb_cfg[f'{key}/{k}'] = v
-            else:
-                wandb_cfg[key] = val  
+        wandb_cfg = make_wandb_config(cfg)
         run = wandb.init(
             name=cfg.run_name, 
             config=wandb_cfg,
