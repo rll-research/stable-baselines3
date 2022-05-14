@@ -55,6 +55,9 @@ def evaluate(cfg):
     
     toload = join(cfg.data_path, cfg.load_run)
     steps = natsorted(glob(join(toload, 'eval/models/*.zip')))
+    if len(steps) == 0:
+        print('No model found in !', toload)
+        return 
     logging.info(f"Load run {cfg.load_run}, found {len(steps)} checkpoints for models")
     print([step.split('/')[-1] for step in steps])
 
