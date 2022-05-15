@@ -586,7 +586,9 @@ class PPO(OnPolicyAlgorithm):
                     print('\nCollecting rollout for Iteration {}'.format(iteration))
 
                 if iteration % self.reptile_k == 0:
-                    old_policy = deepcopy(self.policy).eval() # update old policy
+                    #old_policy_params = deepcopy(self.policy.parameters()) # update old policy
+                    # make a copy of current self.policy:
+                    old_policy_params = [p.clone().detach() for p in self.policy.parameters()]
                     self.resample_procgen_env() # resample env s.t. all inner-loop steps are from the same level 
                     
                 continue_training = self.collect_rollouts(self.env, callback, self.rollout_buffer, n_rollout_steps=self.n_steps)
@@ -623,7 +625,7 @@ class PPO(OnPolicyAlgorithm):
                 if iteration % self.reptile_k == self.reptile_k - 1:
                     frac_done = self.num_timesteps / total_timesteps
                     eps = (1 - frac_done) * self.reptile_eps
-                    for old_param, new_param in zip(old_policy.parameters(), self.policy.parameters()):
+                    for old_param, new_param in zip(old_policy_params, self.policy.parameters()):
                         new_param.data.copy_(
                             new_param.data + eps * (old_param.data - new_param.data))
 

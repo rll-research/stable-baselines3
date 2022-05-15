@@ -2,9 +2,9 @@
 
 # Reptile
 CPUS=0-64
-taskset -c $CPUS python train.py run_name=Reptile1-ImpalaCNN-1e2levels \
+taskset -c $CPUS python train.py run_name=Reptile3-ImpalaCNN-1e2levels \
     procgen.train.num_levels=100 \
-    learn.total_timesteps=100e6   ppo.reptile_k=1
+    learn.total_timesteps=100e6   ppo.reptile_k=3
 
 CPUS=32-64
 taskset -c $CPUS python train.py run_name=Reptile1-ImpalaCNN-1e3levels \
