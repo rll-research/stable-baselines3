@@ -195,8 +195,10 @@ class PPO(OnPolicyAlgorithm):
         self.sampling_strategy = buffer_sample_strategy
         self.reptile_k = reptile_k
         self.reptile_eps = reptile_eps
-        self.procgen_levels = [int(env_cfg.start_level + i) for i in range(env_cfg.num_levels)]
         self.env_cfg = env_cfg
+        self.procgen_levels = []
+        if env_cfg is not None:
+            self.procgen_levels = [int(env_cfg.start_level + i) for i in range(env_cfg.num_levels)]
         if reptile_k > 0:
             print('Using Reptile with inner number of steps: ', reptile_k)
             print(f'Sampling from training levels: {self.procgen_levels[0]} to {self.procgen_levels[-1]}')

@@ -200,6 +200,8 @@ def main(cfg: DictConfig) -> None:
         toload = join(toload, f'eval/models/{cfg.load_step}')
         model = model.load(env=env, path=toload) #'/home/mandi/stable-baselines3/log/log/burn/seed6/eval/best_model.zip')
         print('loaded model:', toload)
+        print('Setting Reptile-k step to 0 for loaded model')
+        model.reptile_k = 0
 
     # create logger object
     strings = ['stdout']
