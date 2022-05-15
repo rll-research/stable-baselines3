@@ -3,9 +3,28 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import gym
 import numpy as np
-
+import torch as th
 from stable_baselines3.common import base_class
 from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is_vecenv_wrapped
+# from stable_baselines3.common.type_aliases import GymEnv, Schedule, TensorDict, TrainFreq, TrainFrequencyUnit
+
+
+# from stable_baselines3.common.utils import obs_as_tensor
+
+def obs_as_tensor(obs, device):
+    """
+    Moves the observation to the given device.
+
+    :param obs:
+    :param device: PyTorch device
+    :return: PyTorch tensor of the observation on a desired device.
+    """
+    if isinstance(obs, np.ndarray):
+        return th.as_tensor(obs).to(device)
+    elif isinstance(obs, dict):
+        return {key: th.as_tensor(_obs).to(device) for (key, _obs) in obs.items()}
+    else:
+        raise Exception(f"Unrecognized type of observation {type(obs)}")
 
 
 def evaluate_policy(
@@ -81,8 +100,12 @@ def evaluate_policy(
     observations = env.reset()
     states = None
     episode_starts = np.ones((env.num_envs,), dtype=bool)
-    while (episode_counts < episode_count_targets).any():
-        actions, states = model.predict(observations, state=states, episode_start=episode_starts, deterministic=deterministic)
+    while (episode_counts < episode_count_targets).any(): 
+        # actions, states = model.predict(observations, state=states, episode_start=episode_starts, deterministic=deterministic) 
+        obs_tensor = obs_as_tensor(observations, model.device)
+        actions, _, _ = model.policy(obs_tensor)
+        actions = actions.cpu().numpy() # no clip for procgen
+
         observations, rewards, dones, infos = env.step(actions)
         current_rewards += rewards
         current_lengths += 1
@@ -108,7 +131,7 @@ def evaluate_policy(
                             # Monitor wrapper includes "episode" key in info if environment
                             # has been wrapped with it. Use those rewards instead.
                             episode_rewards.append(info["episode"]["r"])
-                            episode_lengths.append(info["episode"]["l"])
+                            episode_lengths.append(info["episode"]["l"]) 
                             # Only increment at the real end of an episode
                             episode_counts[i] += 1
                     else:
@@ -117,10 +140,11 @@ def evaluate_policy(
                         episode_counts[i] += 1
                     current_rewards[i] = 0
                     current_lengths[i] = 0
+                    
 
         if render:
             env.render()
-
+    #print('Eval:', is_monitor_wrapped, current_rewards[0], np.mean(episode_rewards))
     mean_reward = np.mean(episode_rewards)
     std_reward = np.std(episode_rewards)
     if reward_threshold is not None:

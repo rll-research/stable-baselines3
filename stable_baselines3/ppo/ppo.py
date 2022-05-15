@@ -27,7 +27,17 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.utils import explained_variance, get_schedule_fn, obs_as_tensor, safe_mean
 from copy import deepcopy
 import time       
+import random
 from procgen import ProcgenEnv
+from stable_baselines3.common.vec_env import (
+    DummyVecEnv,
+    SubprocVecEnv,
+    VecEnv, 
+    VecTransposeImage,
+    is_vecenv_wrapped,
+    VecMonitor
+)
+from omegaconf import DictConfig, OmegaConf, ListConfig
 
 class PPO(OnPolicyAlgorithm):
     """
@@ -116,6 +126,7 @@ class PPO(OnPolicyAlgorithm):
         buffer_sample_strategy: str = "default",
         reptile_k: int = 0,
         reptile_eps: float = 1.0,
+        env_cfg: DictConfig = None,
 
     ):
 
@@ -184,9 +195,13 @@ class PPO(OnPolicyAlgorithm):
         self.sampling_strategy = buffer_sample_strategy
         self.reptile_k = reptile_k
         self.reptile_eps = reptile_eps
+        self.procgen_levels = [int(env_cfg.start_level + i) for i in range(env_cfg.num_levels)]
+        self.env_cfg = env_cfg
         if reptile_k > 0:
             print('Using Reptile with inner number of steps: ', reptile_k)
-
+            print(f'Sampling from training levels: {self.procgen_levels[0]} to {self.procgen_levels[-1]}')
+            self.resample_procgen_env()
+        
         if _init_setup_model:
             self._setup_model()
 
@@ -262,7 +277,17 @@ class PPO(OnPolicyAlgorithm):
                 sampling_strategy=self.sampling_strategy,
             )
         
-
+    def resample_procgen_env(self) -> None:
+        new_level = random.choice(self.procgen_levels)
+        if self.verbose > 1:
+            print('Resampling Procgen game to level: ', new_level)
+        self.env_cfg.start_level = new_level
+        self.env_cfg.num_levels = 1
+        env = VecMonitor(ProcgenEnv(**(self.env_cfg)))
+        env = self._wrap_env(env, verbose=0, monitor_wrapper=True)
+        self.env = env
+        self._last_obs = self.env.reset()
+ 
  
     def train(self) -> None:
         """
@@ -562,6 +587,7 @@ class PPO(OnPolicyAlgorithm):
 
                 if iteration % self.reptile_k == 0:
                     old_policy = deepcopy(self.policy).eval() # update old policy
+                    self.resample_procgen_env() # resample env s.t. all inner-loop steps are from the same level 
                     
                 continue_training = self.collect_rollouts(self.env, callback, self.rollout_buffer, n_rollout_steps=self.n_steps)
 

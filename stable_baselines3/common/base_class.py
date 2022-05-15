@@ -233,7 +233,7 @@ class BaseAlgorithm(ABC):
                 if verbose >= 1:
                     print("Wrapping the env in a VecTransposeImage.")
                 env = VecTransposeImage(env)
-
+        
         return env
 
     @abstractmethod

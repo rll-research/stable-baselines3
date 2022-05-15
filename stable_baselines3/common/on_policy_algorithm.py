@@ -174,11 +174,9 @@ class OnPolicyAlgorithm(BaseAlgorithm):
             # Rescale and perform action
             clipped_actions = actions
             # Clip the actions to avoid out of bound error
+            # procgen doesn't need clip
             if isinstance(self.action_space, gym.spaces.Box):
                 clipped_actions = np.clip(actions, self.action_space.low, self.action_space.high)
-
-            #print(clipped_actions.shape, self.action_space)
-            #raise ValueError
 
             new_obs, rewards, dones, infos = env.step(clipped_actions)
             
@@ -190,6 +188,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
                 return False
 
             self._update_info_buffer(infos)
+            # print([inf for inf in infos if 'episode' in inf.keys() and inf['episode']['r'] < 10] ) 
             n_steps += 1
 
             if isinstance(self.action_space, gym.spaces.Discrete):
@@ -208,10 +207,13 @@ class OnPolicyAlgorithm(BaseAlgorithm):
                     with th.no_grad():
                         terminal_value = self.policy.predict_values(terminal_obs)[0]
                     rewards[idx] += self.gamma * terminal_value
+                # if done:
+                #     print(idx, rewards[idx])
 
-            rollout_buffer.add(self._last_obs, actions, rewards, self._last_episode_starts, values, log_probs)
+            rollout_buffer.add(self._last_obs, actions, rewards, self._last_episode_starts, values, log_probs) 
             self._last_obs = new_obs
             self._last_episode_starts = dones
+            #print(rewards.min(), rewards.max(), rewards.mean())
 
         with th.no_grad():
             # Compute value for the last timestep
@@ -266,24 +268,25 @@ class OnPolicyAlgorithm(BaseAlgorithm):
             if self.verbose > 1:
                 print('\nPolicy Update at Iteration {},  Time step {}'.format(iteration, self.num_timesteps))
             self._update_current_progress_remaining(self.num_timesteps, total_timesteps)
-
+            callback.model.policy = self.policy
             callback._on_log_step() # ok to not eval iteration 0 -> 1000 episode len and all 0 rewards
 
             # Display training infos
             if log_interval is not None and iteration % log_interval == 0:
                 # if self.verbose > 1:
-                #     print('\nDoing logger.record for time/* and rollout/*, running eval logger') 
-                
+                #     print('\nDoing logger.record for time/* and rollout/*, running eval logger')  
                 fps = int((self.num_timesteps - self._num_timesteps_at_start) / (time.time() - self.start_time))
                 self.logger.record("time/iterations", iteration, exclude="tensorboard")
                 if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
+                    # print([ep_info["r"] for ep_info in self.ep_info_buffer])
                     self.logger.record("rollout/ep_rew_mean", safe_mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
                     self.logger.record("rollout/ep_len_mean", safe_mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
                 self.logger.record("time/fps", fps)
                 self.logger.record("time/time_elapsed", int(time.time() - self.start_time), exclude="tensorboard")
                 self.logger.record("time/total_timesteps", self.num_timesteps, exclude="tensorboard")
                 self.logger.dump(step=self.num_timesteps)
-
+            if self.iterations == 3:
+                raise ValueError
             self.train()
 
         callback.on_training_end()
