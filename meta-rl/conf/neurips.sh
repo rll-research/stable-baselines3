@@ -2,14 +2,14 @@
 
 # Reptile
 CPUS=0-64
-taskset -c $CPUS python train.py run_name=Reptile5-ImpalaCNN-1e2levels \
+taskset -c $CPUS python train.py run_name=Reptile1-ImpalaCNN-1e2levels \
     procgen.train.num_levels=100 \
-    learn.total_timesteps=100e6   ppo.reptile_k=5 
+    learn.total_timesteps=100e6   ppo.reptile_k=1
 
 CPUS=32-64
-taskset -c $CPUS python train.py run_name=Reptile5-ImpalaCNN-1e3levels \
+taskset -c $CPUS python train.py run_name=Reptile1-ImpalaCNN-1e3levels \
     procgen.train.num_levels=1000 \
-    learn.total_timesteps=100e6   ppo.reptile_k=5 
+    learn.total_timesteps=100e6   ppo.reptile_k=1 
 
 CPUS=64-96
 taskset -c $CPUS python train.py run_name=Reptile5-ImpalaCNN-1e4levels \
@@ -106,11 +106,12 @@ python train.py run_name=$RUN eval_only=True \
     load_run=$LOAD procgen.eval.start_level=10016 procgen.eval.num_levels=1 \
     procgen.eval.num_envs=100 learn.n_eval_episodes=100
 
-for LEVEL in {10020..10000}
+# eval scratch
+for LEVEL in {10000..10020}
 do 
 for SEED in  123 312 231 # 321 213
 do
-LOAD=Scratch-Unseen${LEVEL}-Seed${SEED}-256Envs-2048Batch
+LOAD=Scratch-Unseen${LEVEL}-Seed${SEED}-256Envs-2048Batch/seed1
 RUN=Eval-Scratch-${LEVEL}-Seed${SEED}
 python train.py run_name=$RUN eval_only=True \
     load_run=$LOAD procgen.eval.start_level=${LEVEL} procgen.eval.num_levels=1 \
@@ -118,3 +119,20 @@ python train.py run_name=$RUN eval_only=True \
  
 done
 done
+
+# eval ft
+for FT in FineTune-1e2 FineTune-1e3 FineTune-1e4
+do
+for LEVEL in {10000..10020}
+do 
+for SEED in  123 312 231 321 213
+do 
+LOAD=${FT}-Unseen${LEVEL}-Seed${SEED}-256Envs-2048Batch/seed1
+RUN=Eval-${FT}-${LEVEL}-Seed${SEED}
+python train.py run_name=$RUN eval_only=True \
+    load_run=$LOAD procgen.eval.start_level=${LEVEL} procgen.eval.num_levels=1 \
+    procgen.eval.num_envs=100 learn.n_eval_episodes=100
+ 
+done
+done
+done 

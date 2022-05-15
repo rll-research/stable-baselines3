@@ -15,6 +15,7 @@ procgen:
     start_level: 0
     distribution_mode: 'hard'
     restrict_themes: False
+    rand_seed: ${ppo.seed}
     # render_mode: rgb_array -> this give 512x512 obs
   eval:
     env_name:    ${procgen.name}
@@ -23,6 +24,7 @@ procgen:
     start_level: 100000 # to make it strictly disjoint
     distribution_mode: ${procgen.train.distribution_mode}
     restrict_themes: ${procgen.train.restrict_themes}
+    rand_seed: ${ppo.seed}
   
 procgen_custom:
   name:         'coinrun'
@@ -74,7 +76,7 @@ learn:
   # callback:        None 
   log_interval:    50
   eval_freq:       100 # this is w.r.t. iterations 
-  n_eval_episodes: 6400
+  n_eval_episodes: 640
   tb_log_name:     "PPO"
   eval_log_path:   ???
   reset_num_timesteps: True 
@@ -113,6 +115,7 @@ ppo:
   buffer_sample_strategy: "default" # "per_env"
   reptile_k: 0
   reptile_eps: 1
+  env_cfg: ${env.train}
 
 wandb:
   project:   'neurips22'

@@ -87,7 +87,7 @@ def evaluate(cfg):
             env_cfg.start_level = level
             env = ProcgenEnv(**(env_cfg))
             env = VecMonitor(env)
-            logging.info('Made env for level {}'.format(start + 1))
+            logging.info('Made env for level {}'.format(start + i))
 
             ppo_model = PPO(env=env, **cfg.ppo)
             model = ppo_model.load(env=env, path=toload) 
@@ -176,6 +176,7 @@ def main(cfg: DictConfig) -> None:
     
     env = VecMonitor(env)
     eval_env = VecMonitor(eval_env)
+    eval_env = VecTransposeImage(eval_env)
 
     cfg.run_name += f'-{n_envs}Envs-{cfg.ppo.batch_size}Batch'
     # set up log path

@@ -82,7 +82,6 @@ def main(cfg: DictConfig) -> None:
         model.policy.reset_noise(n_envs)
 
     env = model.env
-
     last_obs = env.reset()
     states = None 
     dones = np.ones((n_envs,), dtype=bool) # model._last_episode_starts
