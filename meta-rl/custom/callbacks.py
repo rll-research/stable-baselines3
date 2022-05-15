@@ -82,8 +82,9 @@ class LogEvalCallback(EvalCallback):
         return True 
 
     def on_training_end(self):
+        self._on_log_step()
         if self.model_save_path is not None:
-            self.model.save(os.path.join(self.model_save_path, f"{int(self.model._n_updates)}"))
+            self.model.save(os.path.join(self.model_save_path, f"{int(self.model._n_updates)}-updates"))
 
     def _on_log_step(self) -> bool:
         """ Run Eval of model after fixed update steps """

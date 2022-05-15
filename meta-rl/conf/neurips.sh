@@ -32,20 +32,23 @@ taskset -c $CPUS python train.py run_name=ImpalaCNN-1e4levels \
 
 # finetune: unseen levels in [0, 2, 7, 9, 15] + 10000
 
-CPUS=100-150 
-LOAD_RUN=ImpalaCNN-1e2levels-256Envs-2048Batch/seed1 
 LOAD_STEP=1500
-for LEVEL in 10000 # 10002 10007 10009 10015 
-for SEED in 0 1
+for LOAD_LEVEL in 1e2 1e3 1e4
 do
-do
-    RUN=FineTune-1e2-Unseen${LEVEL} 
-    taskset -c $CPUS python train.py run_name=$RUN \
+LOAD_RUN=ImpalaCNN-${LOAD_LEVEL}levels-256Envs-2048Batch/seed1 
+for LEVEL in {10000..10020}
+do 
+for SEED in 0
+do 
+RUN=FineTune-1e2-Unseen${LEVEL} 
+taskset -c $CPUS python train.py run_name=$RUN \
         load_run=$LOAD_RUN load_step=$LOAD_STEP \
         procgen.train.start_level=${LEVEL} procgen.train.num_levels=1 \
-        learn.total_timesteps=1e6 procgen.eval.start_level=${LEVEL} procgen.eval.num_levels=1 \
-        learn.eval_freq=1 learn.log_interval=1  learn.n_eval_episodes=640 
+        learn.total_timesteps=2e6 procgen.eval.start_level=${LEVEL} procgen.eval.num_levels=1 \
+        learn.eval_freq=1 learn.log_interval=1 \
+        procgen.eval.num_envs=100 learn.n_eval_episodes=100 ppo.seed=$SEED
 done
+done 
 done 
 
 LOAD_RUN=ImpalaCNN-1e3levels-256Envs-2048Batch/seed1 
@@ -73,7 +76,7 @@ done
 # 321 213
 for LEVEL in 10000 # {10020..10000}
 do 
-for SEED in  1 # 123 312 231 # 321 213
+for SEED in 0 1 # 123 312 231 # 321 213
 do
 RUN=Scratch-Unseen${LEVEL}-Seed${SEED}
 taskset -c $CPUS python train.py run_name=$RUN ppo.seed=${SEED} \
