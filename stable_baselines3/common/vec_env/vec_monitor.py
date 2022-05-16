@@ -64,8 +64,8 @@ class VecMonitor(VecEnvWrapper):
             )
         else:
             self.results_writer = None
-        self.info_keywords = info_keywords
-
+        self.info_keywords = info_keywords 
+        
     def reset(self) -> VecEnvObs:
         obs = self.venv.reset()
         self.episode_returns = np.zeros(self.num_envs, dtype=np.float32)
@@ -79,19 +79,20 @@ class VecMonitor(VecEnvWrapper):
         new_infos = list(infos[:])
         for i in range(len(dones)):
             if dones[i]:
-                info = infos[i].copy()
+                info = infos[i].copy() 
                 episode_return = self.episode_returns[i]
                 episode_length = self.episode_lengths[i]
-                episode_info = {"r": episode_return, "l": episode_length, "t": round(time.time() - self.t_start, 6)}
-                for key in self.info_keywords:
-                    episode_info[key] = info[key]
-                info["episode"] = episode_info
+                episode_info = {"r": episode_return, "l": episode_length, "t": round(time.time() - self.t_start, 6)} 
+                for key in self.info_keywords: 
+                    episode_info[key] = info[key] 
+                info["episode"] = episode_info  
+                
                 self.episode_count += 1
                 self.episode_returns[i] = 0
                 self.episode_lengths[i] = 0
                 if self.results_writer:
                     self.results_writer.write_row(episode_info)
-                new_infos[i] = info
+                new_infos[i] = info 
         return obs, rewards, dones, new_infos
 
     def close(self) -> None:
