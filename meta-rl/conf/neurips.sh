@@ -23,6 +23,17 @@ taskset -c $CPUS python train.py run_name=RL2-ImpalaCNN-1e2levels \
     learn.total_timesteps=100e6 recurrent=True use_custom=True \
     ppo.n_steps=512 policy_cfg=lstm ppo.buffer_sample_strategy=per_env procgen_custom.num_eval_env=1 # tmp! 
 
+CPUS=0-64
+taskset -c $CPUS python train.py run_name=RL2-ImpalaCNN-1e3levels \
+    procgen_custom.train.num_levels=1000 \
+    learn.total_timesteps=100e6 recurrent=True use_custom=True \
+    ppo.n_steps=512 policy_cfg=lstm ppo.buffer_sample_strategy=per_env procgen_custom.num_eval_env=1 # tmp! 
+
+python train.py run_name=RL2-ImpalaCNN-1e4levels \
+    procgen_custom.train.num_levels=10000 \
+    learn.total_timesteps=100e6 recurrent=True use_custom=True \
+    ppo.n_steps=512 policy_cfg=lstm ppo.buffer_sample_strategy=per_env procgen_custom.num_eval_env=1
+
 
 # reptile FT
 

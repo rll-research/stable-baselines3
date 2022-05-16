@@ -283,10 +283,11 @@ class OnPolicyAlgorithm(BaseAlgorithm):
                     for ep_info in self.ep_info_buffer:
                         if len(ep_info.get('past_rewards', [])) > 0:
                             past_rew.append(ep_info['past_rewards'])
-                    past_rew = np.array(past_rew) # should be shape (n_episodes, n_past_rewards)
-                    for trial, (mean, std) in enumerate(zip(past_rew.mean(axis=0), past_rew.std(axis=0))):
-                        self.logger.record(f"rollout/trial{trial}/rew_mean", mean, exclude="tensorboard")
-                        self.logger.record(f"rollout/trial{trial}/rew_std", std, exclude="tensorboard")
+                    if len(past_rew) > 0:
+                        past_rew = np.array(past_rew) # should be shape (n_episodes, n_past_rewards)
+                        for trial, (mean, std) in enumerate(zip(past_rew.mean(axis=0), past_rew.std(axis=0))):
+                            self.logger.record(f"rollout/trial{trial}/rew_mean", mean, exclude="tensorboard")
+                            self.logger.record(f"rollout/trial{trial}/rew_std", std, exclude="tensorboard")
                     # raise ValueError
                     self.logger.record("rollout/ep_rew_mean", safe_mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
                     self.logger.record("rollout/ep_len_mean", safe_mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
