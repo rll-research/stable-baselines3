@@ -174,7 +174,10 @@ def main(cfg: DictConfig) -> None:
     else:
         raise NotImplementedError('Unknown env type: %s' % cfg.env_type)
     
-    env = VecMonitor(env)
+    if cfg.env_type == 'procgen' and cfg.use_custom:
+        env = VecMonitor(env, info_keywords=["past_rewards"])
+    else:
+        env = VecMonitor(env)
     eval_env = VecMonitor(eval_env)
     eval_env = VecTransposeImage(eval_env)
 

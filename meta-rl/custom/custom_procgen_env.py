@@ -136,7 +136,7 @@ class MultiProcGenEnv(gym.Env):
                 self.trial_num = 0 
         
         info['trial_num'] = self.trial_num
-        info['past_rewards'] = self.past_rewards
+        info['past_rewards'] = list(self.past_rewards)  
         return {'rgb': cust_obs, 'rew': reward, 'done': float(done), 'action': np.eye(15)[int(action)]}, reward, done, info
         # return {'rgb': next_obs}, reward, done, info
 

@@ -22,7 +22,7 @@ taskset -c $CPUS python train.py run_name=RL2-ImpalaCNN-1e2levels \
     procgen.train.num_levels=100 \
     learn.total_timesteps=100e6 recurrent=True use_custom=True \
     ppo.n_steps=512 policy_cfg=lstm ppo.buffer_sample_strategy=per_env \
-    procgen_custom.num_train_env=3 log_wb=False 
+    procgen_custom.num_train_env=1 ppo.batch_size=512 log_wb=False procgen_custom.num_eval_env=1
 
 
 # reptile FT
