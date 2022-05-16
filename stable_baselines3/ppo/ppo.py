@@ -252,6 +252,7 @@ class PPO(OnPolicyAlgorithm):
                 th.zeros(single_hidden_state_shape).to(self.device),
             ),
         )
+        self.single_hidden_state_shape = single_hidden_state_shape
         if self.debug_buffer:
             buffer_cls = DictRolloutBuffer if isinstance(self.observation_space, gym.spaces.Dict) else RolloutBuffer
             self.rollout_buffer = buffer_cls(
@@ -278,7 +279,23 @@ class PPO(OnPolicyAlgorithm):
                 n_envs=self.n_envs,
                 sampling_strategy=self.sampling_strategy,
             )
-        
+    
+    def make_initial_lstm_states(self, n_envs, device=None):
+        if device is None:
+            device = self.device
+        single_hidden_state_shape = (
+            self.policy.lstm_actor.num_layers, n_envs, self.policy.lstm_actor.hidden_size)
+        return RNNStates(
+            (
+                th.zeros(single_hidden_state_shape).to(device),
+                th.zeros(single_hidden_state_shape).to(device),
+            ),
+            (
+                th.zeros(single_hidden_state_shape).to(device),
+                th.zeros(single_hidden_state_shape).to(device),
+            ),
+        )
+
     def resample_procgen_env(self) -> None:
         new_level = random.choice(self.procgen_levels)
         if self.verbose > 1:

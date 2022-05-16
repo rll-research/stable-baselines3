@@ -7,6 +7,8 @@ import gym
 from gym import spaces 
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn, VecEnvWrapper
 from stable_baselines3.common.vec_env.subproc_vec_env import SubprocVecEnv
+from collections import deque 
+
 class MultiProcGenEnv(gym.Env):
     def __init__(
         self, 
@@ -64,6 +66,7 @@ class MultiProcGenEnv(gym.Env):
         # })
         self.trial_done = False
         self.is_train = is_train
+        self.past_rewards = deque(maxlen=max_trials) # note max_trails is 0-indexed
  
 
     def reset(self):
@@ -84,7 +87,7 @@ class MultiProcGenEnv(gym.Env):
                 'rgb': cust_obs,
                 'rew': 0.0,
                 'done': 0.0,
-                'action': np.eye(15)[4],
+                'action': np.eye(15)[4]
                 }
 
     def seed(self, seed):
@@ -92,10 +95,8 @@ class MultiProcGenEnv(gym.Env):
 
     def step(self, action):
         if self.trial_done:
-            self.trial_done = False  
-
-            next_obs = self.env.reset()
-            
+            self.trial_done = False   
+            next_obs = self.env.reset() 
             #extras = np.zeros((1, 64, 3), dtype=np.float32)
             #extras[0, :] = [4, 0.0, 0.0]
             cust_obs = next_obs # np.concatenate([next_obs/255.0, extras], axis=0)
@@ -117,24 +118,25 @@ class MultiProcGenEnv(gym.Env):
         
         if self.reward_scales != None:
             reward *= self.reward_scales 
-
-        if not self.is_train:
-            if self.trial_num == self.max_trials:
-                reward = reward
-            else:
-                reward = 0.0
+        
+        # if not self.is_train:
+        #     if self.trial_num == self.max_trials:
+        #         reward = reward
+        #     else:
+        #         reward = 0.0
 
         if done:
             if self.trial_num < self.max_trials:
                 done = False
                 self.trial_num += 1
-                self.trial_done = True
+                self.trial_done = True 
+                self.past_rewards.append(reward)
+                reward = 0 if self.is_train else reward
             else:
-                self.trial_num = 0
-
-        
+                self.trial_num = 0 
         
         info['trial_num'] = self.trial_num
+        info['past_rewards'] = self.past_rewards
         return {'rgb': cust_obs, 'rew': reward, 'done': float(done), 'action': np.eye(15)[int(action)]}, reward, done, info
         # return {'rgb': next_obs}, reward, done, info
 
@@ -177,10 +179,6 @@ class RepeatTrialProcgenGym3Env(ProcgenGym3Env):
         return observations, rewards, dones, infos
 
     
-
-cfg = OmegaConf.load('conf/config.yaml').env.train
-# env = RepeatTrialProcgenEnv(max_trials=3, **cfg)
-
 # # env = ToGymEnv
 # env = vectorize_gym(num=3, use_subproc=False, env_kwargs={'id': "procgen:procgen-coinrun-v0"}) #env_fn=make_custom_env)
 # print(env)
@@ -200,6 +198,24 @@ def make_custom_env(
 #     if env.num_trials > 0:
 #         print(env.num_trials)
 if __name__ == "__main__":
-    cfg = OmegaConf.load('conf/config.yaml').custom_env.train
-    env = SubprocVecEnv(env_fns=[lambda : make_custom_env(cfg) for i in range(2)])
-    print(env.reset().shape)
+    cfg = OmegaConf.load('/home/mandi/stable-baselines3/meta-rl/conf/config.yaml').procgen_custom.train
+    cfg.start_level = 10016
+    cfg.num_levels = 1
+    cfg.max_trials = 3
+    # cfg.num_envs = 2 
+    #env = SubprocVecEnv(env_fns=[lambda : make_custom_env(cfg) for i in range(2)])
+    print('Making env')
+    env = MultiProcGenEnv(**cfg)
+    done = False
+    obs = env.reset()
+    print('start stepping')
+    step = 0
+    while not done:
+        act = np.random.randint(0, 15) #, size=(1,))
+        obs, rew, done, info = env.step(act)
+        step += 1
+        if env.trial_done: 
+            print(f'Done trial {env.trial_num} at step:', step, rew, info)
+    print(f'Done episode {env.trial_num} at step:', step, rew, info)
+    env.close()
+    #print(env.reset().shape)

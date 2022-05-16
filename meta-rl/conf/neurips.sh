@@ -7,14 +7,44 @@ taskset -c $CPUS python train.py run_name=Reptile3-ImpalaCNN-1e2levels \
     learn.total_timesteps=100e6   ppo.reptile_k=3
 
 CPUS=32-64
-taskset -c $CPUS python train.py run_name=Reptile1-ImpalaCNN-1e3levels \
+taskset -c $CPUS python train.py run_name=Reptile3-ImpalaCNN-1e3levels \
     procgen.train.num_levels=1000 \
-    learn.total_timesteps=100e6   ppo.reptile_k=1 
+    learn.total_timesteps=100e6   ppo.reptile_k=3
 
 CPUS=64-96
-taskset -c $CPUS python train.py run_name=Reptile5-ImpalaCNN-1e4levels \
+taskset -c $CPUS python train.py run_name=Reptile3-ImpalaCNN-1e4levels \
     procgen.train.num_levels=10000 \
-    learn.total_timesteps=100e6   ppo.reptile_k=5 
+    learn.total_timesteps=100e6   ppo.reptile_k=3
+
+# RL2
+CPUS=0-64
+taskset -c $CPUS python train.py run_name=RL2-ImpalaCNN-1e2levels \
+    procgen.train.num_levels=100 \
+    learn.total_timesteps=100e6 recurrent=True use_custom=True \
+    ppo.n_steps=512 policy_cfg=lstm ppo.buffer_sample_strategy=per_env \
+    procgen_custom.num_train_env=3 log_wb=False 
+
+
+# reptile FT
+
+LOAD_STEP=1500
+for LOAD_LEVEL in 1e2 1e3 1e4
+do
+LOAD_RUN=Reptile3-ImpalaCNN-${LOAD_LEVEL}levels-256Envs-2048Batch/seed1
+for LEVEL in {10000..10020}
+do 
+for SEED in 0
+do 
+RUN=FineTune-Reptile-${LOAD_LEVEL}-Unseen${LEVEL} 
+taskset -c $CPUS python train.py run_name=$RUN \
+        load_run=$LOAD_RUN load_step=$LOAD_STEP \
+        procgen.train.start_level=${LEVEL} procgen.train.num_levels=1 \
+        learn.total_timesteps=2e6 procgen.eval.start_level=${LEVEL} procgen.eval.num_levels=1 \
+        learn.eval_freq=1 learn.log_interval=1 \
+        procgen.eval.num_envs=50 learn.n_eval_episodes=100 ppo.seed=$SEED
+done
+done 
+done 
 
 # pretrain
 CPUS=96-128
@@ -46,43 +76,35 @@ taskset -c $CPUS python train.py run_name=$RUN \
         procgen.train.start_level=${LEVEL} procgen.train.num_levels=1 \
         learn.total_timesteps=2e6 procgen.eval.start_level=${LEVEL} procgen.eval.num_levels=1 \
         learn.eval_freq=1 learn.log_interval=1 \
-        procgen.eval.num_envs=100 learn.n_eval_episodes=100 ppo.seed=$SEED
+        procgen.eval.num_envs=50 learn.n_eval_episodes=100 ppo.seed=$SEED
 done
 done 
 done 
 
-LOAD_RUN=ImpalaCNN-1e3levels-256Envs-2048Batch/seed1 
-LOAD_STEP=1500
-for LEVEL in 10000 10002 10007 10009 10015 
-do
-    RUN=FineTune-1e3-Unseen${LEVEL} 
-    taskset -c $CPUS python train.py run_name=$RUN \
-        load_run=$LOAD_RUN load_step=$LOAD_STEP \
-        procgen.train.start_level=${LEVEL} procgen.train.num_levels=1 \
-        learn.total_timesteps=1e6 procgen.eval.start_level=${LEVEL} procgen.eval.num_levels=1 \
-        learn.eval_freq=1 learn.log_interval=1  learn.n_eval_episodes=640 
-done
-
-# scratch 
-for LEVEL in 10000 #10002 10007 10009 10015 
+ 
+# scratch  
+for LEVEL in  {10010..10020}
 do 
-    RUN=Scratch-Unseen{LEVEL} 
-    taskset -c $CPUS python train.py run_name=$RUN \
-        procgen.train.num_envs=64 \
-        procgen.train.start_level=${LEVEL} procgen.train.num_levels=1 \
-        learn.total_timesteps=2e6 procgen.eval.start_level=${LEVEL} procgen.eval.num_levels=1 \
-        learn.eval_freq=1 learn.log_interval=1  learn.n_eval_episodes=640 log_wb=False vb=3
-done
-# 321 213
-for LEVEL in 10000 # {10020..10000}
-do 
-for SEED in 0 1 # 123 312 231 # 321 213
+for SEED in 0 # 123 312 231 # 321 213
 do
 RUN=Scratch-Unseen${LEVEL}-Seed${SEED}
 taskset -c $CPUS python train.py run_name=$RUN ppo.seed=${SEED} \
     procgen.train.start_level=${LEVEL} procgen.train.num_levels=1 \
     learn.total_timesteps=2e6 procgen.eval.start_level=${LEVEL} procgen.eval.num_envs=50 \
     procgen.eval.num_levels=1 \
+    learn.eval_freq=1 learn.log_interval=1  learn.n_eval_episodes=100
+done 
+done 
+# scratch but with NatureCNN
+for LEVEL in  {10010..10020}
+do 
+for SEED in 0 # 123 312 231 # 321 213
+do
+RUN=Scratch-NatureCNN-Unseen${LEVEL}-Seed${SEED}
+taskset -c $CPUS python train.py run_name=$RUN ppo.seed=${SEED} \
+    procgen.train.start_level=${LEVEL} procgen.train.num_levels=1 \
+    learn.total_timesteps=2e6 procgen.eval.start_level=${LEVEL} procgen.eval.num_envs=50 \
+    procgen.eval.num_levels=1 cnn=NatureCNN \
     learn.eval_freq=1 learn.log_interval=1  learn.n_eval_episodes=100
 done 
 done 

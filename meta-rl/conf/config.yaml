@@ -28,11 +28,11 @@ procgen:
   
 procgen_custom:
   name:         'coinrun'
-  num_train_env:   256 
+  num_train_env:   128
   num_eval_env: 64
   train:
     env_name:   ${procgen_custom.name} 
-    max_trials: 1
+    max_trials: 1 # 0-indexed
     num_levels: 100
     start_level: 0
     distribution_mode: 'hard'
@@ -41,8 +41,8 @@ procgen_custom:
   eval:
     env_name:    ${procgen_custom.name}
     max_trials:  ${procgen_custom.train.max_trials}
-    num_levels:  50 # test on full distribution, following prior work 
-    start_level: 100000 # set to ${env.train.num_levels}  to make it strictly disjoint
+    num_levels:  100 # test on full distribution, following prior work 
+    start_level: 10000 # set to ${env.train.num_levels}  to make it strictly disjoint
     distribution_mode: ${procgen_custom.train.distribution_mode}
     restrict_themes: ${procgen_custom.train.restrict_themes}
     is_train: False 
@@ -108,7 +108,7 @@ ppo:
   policy_kwargs:   ${policy_cfg.kwargs}
   verbose:         ${vb}
   seed:            123
-  device:          "cuda"
+  device:          "cuda:0"
   _init_setup_model: True  
   recurrent:      ${policy_cfg.recurrent}
   debug_buffer: False 

@@ -121,7 +121,7 @@ class RecurrentRolloutBuffer(RolloutBuffer):
             # indices = np.arange(self.buffer_size * self.n_envs)
             # indices = np.concatenate((indices[split_index:], indices[:split_index]))
 
-            env_change = np.zeros(self.buffer_size * self.n_envs).reshape(self.buffer_size, self.n_envs)
+            env_change = np.zeros((self.buffer_size, self.n_envs))
             # Flag first timestep as change of environment
             env_change[0, :] = 1.0
             env_change = self.swap_and_flatten(env_change)
