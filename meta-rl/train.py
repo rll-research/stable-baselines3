@@ -160,7 +160,8 @@ def evaluate_rl2(cfg):
     model_itr = int(toload.split('/')[-1])
     level_data = dict()
     for i in range(total_levels):
-        level = start + 1
+        level = start + i
+        env_cfg.start_level = level
         env = SubprocVecEnv([
             lambda : make_custom_env(env_cfg) for i in range(n_envs)])
         env = VecMonitor(env, info_keywords=["past_rewards"])
@@ -176,7 +177,8 @@ def evaluate_rl2(cfg):
         dones = np.ones((n_envs,), dtype=bool) # model.
         _last_episode_starts = np.ones((env.num_envs,), dtype=bool)
         env_steps = 0 
-        trial_rews = dict()
+        past_rew = []
+        final_rs, final_ts = [], [] 
         lstm_states = deepcopy(model._last_lstm_states)
         while env_steps < cfg.learn.total_timesteps:
             with th.no_grad():
@@ -186,8 +188,13 @@ def evaluate_rl2(cfg):
                 actions, values, log_probs, lstm_states = model.policy.forward(obs_tensor, lstm_states, episode_starts)
             new_obs, rewards, dones, infos = env.step(actions.cpu().numpy())
             env_steps += n_envs
-            print([info.keys() for info in infos])
-            
+            for info in infos:
+                if 'episode' in info.keys():
+                    ep_info = info['episode']
+                    if len(ep_info.get('past_rewards', [])) > 0:
+                        past_rew.append(ep_info['past_rewards'])
+                    final_rs.append(ep_info['r'])
+                    final_ts.append(ep_info['l'])
             # for idx, done_ in enumerate(dones):
             #     episode_starts[idx] = done_
             #     if done_: 
@@ -195,11 +202,25 @@ def evaluate_rl2(cfg):
             #         eps_rews.append(rewards[idx])
             last_obs = new_obs
             
-            if env_steps % 50000 == 0:
-                tolog = {'Env Steps': env_steps}    
-                for k, v in trial_rews.items():
-                    tolog[k+'/reward_mean'] = np.mean(v)
-                    tolog[k+'/reward_std'] = np.std(v)
+            if env_steps % (256 * 256) == 0:
+                tolog = {'Env Steps': env_steps}
+                if len(past_rew) > 0:
+                    past_rew = np.array(past_rew)    
+                    for trial, (mean, std) in enumerate(zip(past_rew.mean(axis=0), past_rew.std(axis=0))):
+                        tolog[f"rollout/trial{trial}/rew_mean"] =  mean 
+                        tolog[f"rollout/trial{trial}/rew_std"] = std 
+                    past_rew = []
+                tolog['rollout/reward_mean'] = np.mean(final_rs)
+                tolog['rollout/reward_std'] = np.std(final_rs)
+                tolog['rollout/ep_len_mean'] = np.mean(final_ts)
+                tolog['rollout/ep_len_std'] = np.std(final_ts)
+                final_rs, final_ts = [], []
+                
+                if cfg.log_wb:
+                    wandb.log(tolog)
+                else:
+                    print(tolog)
+
     
         
 
