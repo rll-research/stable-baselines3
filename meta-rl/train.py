@@ -142,7 +142,8 @@ def evaluate_rl2(cfg):
     env_cfg.num_levels = 1
     
     logging.info('Using custom procgen env! Max number of trials: %d' % cfg.procgen_custom.train.max_trials)
-    n_envs = cfg.env.num_eval_env 
+    n_envs = cfg.env.num_eval_env
+    print('Making envs parallel:', n_envs)
 
     if cfg.log_wb:
         cfg.wandb.job_type = 'eval'
@@ -168,6 +169,9 @@ def evaluate_rl2(cfg):
         model = ppo_model.load(env=env, path=toload) 
         model.policy.set_training_mode(False) 
         env = model.env
+        print('Model envs',model.n_envs, env.num_envs)
+        #raise ValueError
+
         last_obs = env.reset()
         dones = np.ones((n_envs,), dtype=bool) # model.
         _last_episode_starts = np.ones((env.num_envs,), dtype=bool)
@@ -178,7 +182,7 @@ def evaluate_rl2(cfg):
             with th.no_grad():
                 obs_tensor = obs_as_tensor(last_obs, model.device)
                 episode_starts = th.tensor(_last_episode_starts).float().to(model.device)
-                forward_act, values, log_probs = model.policy(obs_tensor) 
+                # actions, values, log_probs, lstm_states = model.policy(obs_tensor, lstm_states, episode_starts)
                 actions, values, log_probs, lstm_states = model.policy.forward(obs_tensor, lstm_states, episode_starts)
             new_obs, rewards, dones, infos = env.step(actions.cpu().numpy())
             env_steps += n_envs
