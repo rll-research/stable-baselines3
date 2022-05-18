@@ -23,6 +23,21 @@ taskset -c $CPUS python train.py run_name=RL2-ImpalaCNN-1e2levels \
     learn.total_timesteps=100e6 recurrent=True use_custom=True \
     ppo.n_steps=512 policy_cfg=lstm ppo.buffer_sample_strategy=per_env procgen_custom.num_eval_env=1 # tmp! 
 
+taskset -c $CPUS python train.py run_name=RL2-ImpalaCNN-1e2levels-256steps-DefaultSample \
+    procgen_custom.train.num_levels=100 \
+    learn.total_timesteps=50e6 recurrent=True use_custom=True \
+    ppo.n_steps=256 procgen_custom.num_train_env=256 \
+     policy_cfg=lstm ppo.buffer_sample_strategy=default procgen_custom.num_eval_env=1  
+
+# eval RL2
+TrainLevels=1e2
+LOAD_RUN=RL2-ImpalaCNN-${TrainLevels}levels-128steps-256Envs-1024Batch/seed1
+python train.py run_name=RL2-Eval-${TrainLevels} eval_rl2=True \
+load_run=$LOAD_RUN ppo.recurrent=True policy_cfg=lstm \
+ log_wb=False procgen_custom.eval.num_levels=1
+
+
+
 CPUS=0-64
 taskset -c $CPUS python train.py run_name=RL2-ImpalaCNN-1e3levels \
     procgen_custom.train.num_levels=1000 \
@@ -38,7 +53,22 @@ python train.py run_name=RL2-ImpalaCNN-1e4levels \
 # reptile FT
 
 LOAD_STEP=1500
-for LOAD_LEVEL in 1e2 1e3 1e4
+LOAD_RUN=Reptile3-ImpalaCNN-1e2levels-256Envs-2048Batch/seed1
+for LEVEL in {10009..10020}
+do 
+for SEED in 0
+do 
+RUN=FineTune-Reptile-1e2-Unseen${LEVEL} 
+taskset -c $CPUS python train.py run_name=$RUN \
+        load_run=$LOAD_RUN load_step=$LOAD_STEP \
+        procgen.train.start_level=${LEVEL} procgen.train.num_levels=1 \
+        learn.total_timesteps=2e6 procgen.eval.start_level=${LEVEL} procgen.eval.num_levels=1 \
+        learn.eval_freq=1 learn.log_interval=1 \
+        procgen.eval.num_envs=50 learn.n_eval_episodes=100 ppo.seed=$SEED
+done
+done  
+
+for LOAD_LEVEL in 1e3 1e4
 do
 LOAD_RUN=Reptile3-ImpalaCNN-${LOAD_LEVEL}levels-256Envs-2048Batch/seed1
 for LEVEL in {10000..10020}

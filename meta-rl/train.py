@@ -49,7 +49,7 @@ def make_wandb_config(cfg):
     return wandb_cfg 
     
 def evaluate(cfg):
-    assert cfg.env_type == 'procgen' and not cfg.use_custom, 'Only original procgen env is supported for now'
+    #assert cfg.env_type == 'procgen' and not cfg.use_custom, 'Only original procgen env is supported for now'
 
     logging.info(f"Eval **one at a time** on levels {cfg.env.eval.start_level} - {cfg.env.eval.start_level + cfg.env.eval.num_levels}")
     
@@ -125,11 +125,88 @@ def evaluate(cfg):
             wandb.log(level_data)
     return
 
+def evaluate_rl2(cfg):
+    toload = join(cfg.data_path, cfg.load_run)
+    steps = natsorted(glob(join(toload, 'eval/models/*.zip')))
+    if len(steps) == 0:
+        print('No model found in !', toload)
+        return 
+    logging.info(f"Load run {cfg.load_run}, found {len(steps)} checkpoints for models, use the last model")
+    print([step.split('/')[-1] for step in steps])
+    step = steps[-2]
+
+    cfg.env = cfg.procgen_custom 
+    env_cfg = deepcopy(cfg.env.eval) 
+    total_levels = cfg.env.eval.num_levels
+    start = cfg.env.eval.start_level
+    env_cfg.num_levels = 1
+    
+    logging.info('Using custom procgen env! Max number of trials: %d' % cfg.procgen_custom.train.max_trials)
+    n_envs = cfg.env.num_eval_env 
+
+    if cfg.log_wb:
+        cfg.wandb.job_type = 'eval'
+        cfg.log_path = ''
+        cfg.learn.eval_log_path = ''
+        wandb_cfg = make_wandb_config(cfg)
+        run = wandb.init(
+            name=cfg.run_name, 
+            config=wandb_cfg,
+            **cfg.wandb
+            )
+    
+    toload = step[:-4] # remove .zip 
+    model_itr = int(toload.split('/')[-1])
+    level_data = dict()
+    for i in range(total_levels):
+        level = start + 1
+        env = SubprocVecEnv([
+            lambda : make_custom_env(env_cfg) for i in range(n_envs)])
+        env = VecMonitor(env, info_keywords=["past_rewards"])
+        
+        ppo_model = PPO(env=env, **cfg.ppo)
+        model = ppo_model.load(env=env, path=toload) 
+        model.policy.set_training_mode(False) 
+        env = model.env
+        last_obs = env.reset()
+        dones = np.ones((n_envs,), dtype=bool) # model.
+        _last_episode_starts = np.ones((env.num_envs,), dtype=bool)
+        env_steps = 0 
+        trial_rews = dict()
+        lstm_states = deepcopy(model._last_lstm_states)
+        while env_steps < cfg.learn.total_timesteps:
+            with th.no_grad():
+                obs_tensor = obs_as_tensor(last_obs, model.device)
+                episode_starts = th.tensor(_last_episode_starts).float().to(model.device)
+                forward_act, values, log_probs = model.policy(obs_tensor) 
+                actions, values, log_probs, lstm_states = model.policy.forward(obs_tensor, lstm_states, episode_starts)
+            new_obs, rewards, dones, infos = env.step(actions.cpu().numpy())
+            env_steps += n_envs
+            print([info.keys() for info in infos])
+            
+            # for idx, done_ in enumerate(dones):
+            #     episode_starts[idx] = done_
+            #     if done_: 
+            #         #print('env index {} done, step {}'.format(idx, n_steps), rewards[idx]) #, infos)
+            #         eps_rews.append(rewards[idx])
+            last_obs = new_obs
+            
+            if env_steps % 50000 == 0:
+                tolog = {'Env Steps': env_steps}    
+                for k, v in trial_rews.items():
+                    tolog[k+'/reward_mean'] = np.mean(v)
+                    tolog[k+'/reward_std'] = np.std(v)
+    
+        
+
 @hydra.main(config_name='config', config_path='conf')
 def main(cfg: DictConfig) -> None: 
     if cfg.eval_only:
         print('Running offline eval!')
         evaluate(cfg)
+        return
+    if cfg.eval_rl2:
+        evaluate_rl2(cfg)
         return
     logging.info('Setting up environments %s', cfg.env_type)
     # set up env
